@@ -1,0 +1,2622 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Kalender Pendidikan SD</title>
+    
+    <!-- Penanganan Error Global Sejak Awal Pemuatan -->
+    <script>
+        window.addEventListener('unhandledrejection', function(event) {
+            event.preventDefault();
+            console.warn('Unhandled Promise Rejection diabaikan secara aman:', event.reason);
+        });
+        window.addEventListener('error', function(event) {
+            if (event.target && (event.target.tagName === 'IMG' || event.target.tagName === 'SCRIPT')) {
+                event.preventDefault();
+            }
+        }, true);
+    </script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            blue: '#1e3a8a',
+                            light: '#3b82f6',
+                            gold: '#d4af37',
+                            goldlight: '#fde047',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- SheetJS untuk Export Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- html2pdf untuk Export PDF Resmi -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        /* Gaya Kustom & Scrollbar */
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Animasi */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Utilitas Sembunyikan Scrollbar */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .toast-enter { animation: toastEnter 0.4s cubic-bezier(0.2, 0, 0.1, 1); }
+        @keyframes toastEnter { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+
+        /* Tampilan Grid Kalender */
+        .cal-day { transition: all 0.2s; position: relative; }
+        .cal-day:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .cal-indicator { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin: 1px; }
+
+        /* Tooltip */
+        .tooltip .tooltip-text { visibility: hidden; width: max-content; max-width: 200px; background-color: #1f2937; color: #fff; text-align: center; border-radius: 6px; padding: 5px 10px; position: absolute; z-index: 50; bottom: 125%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; font-size: 0.75rem; font-weight: normal; }
+        .tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+        .tooltip .tooltip-text::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #1f2937 transparent transparent transparent; }
+        
+        /* Cetak Resmi Tabel & Mode PDF */
+        .table-resmi { table-layout: fixed !important; width: 100%; border-collapse: collapse; }
+        .table-resmi th, .table-resmi td { border: 1px solid black !important; text-align: center; font-size: 10px; padding: 4px 2px; }
+        .table-resmi td.text-left { text-align: left !important; }
+        .table-resmi .bg-hitam { background-color: #333 !important; }
+        
+        .col-bulan { width: 6.5% !important; }
+        .col-tgl { width: 2.1% !important; } 
+        .col-jml { width: 4.5% !important; } 
+        .col-total { width: 5.9% !important; } 
+
+        .pdf-export-mode { width: 1040px !important; max-width: 1040px !important; min-width: 1040px !important; padding: 0px !important; margin: 0 auto !important; background: white; box-sizing: border-box !important; }
+        .pdf-page-break { page-break-before: always !important; break-before: page !important; height: 0px !important; margin: 0 !important; padding: 0 !important; }
+        
+        .pdf-export-mode .table-resmi th, .pdf-export-mode .table-resmi td { padding: 2.5px 0.5px !important; font-size: 8px !important; }
+        .pdf-export-mode .col-bulan { width: 6.0% !important; }
+        .pdf-export-mode .col-tgl { width: 2.12% !important; }
+        .pdf-export-mode .col-jml { width: 4.5% !important; }
+        .pdf-export-mode .col-total { width: 5.6% !important; }
+        
+        .pdf-export-mode .pdf-logo-img { max-height: 40px !important; width: auto !important; }
+        .pdf-export-mode .pdf-logo-box { width: 50px !important; }
+        .pdf-export-mode .tracking-wider { letter-spacing: normal !important; }
+        .pdf-export-mode h1#cetak-dinas { font-size: 13px !important; line-height: 1.2 !important; margin-bottom: 1px !important; }
+        .pdf-export-mode h2#cetak-namasek { font-size: 14px !important; line-height: 1.2 !important; margin-bottom: 1px !important; }
+        .pdf-export-mode p#cetak-alamatsek { font-size: 8.5px !important; }
+        .pdf-export-mode .pb-4 { padding-bottom: 4px !important; }
+        .pdf-export-mode .mb-4 { margin-bottom: 4px !important; }
+        .pdf-export-mode .mb-6 { margin-bottom: 6px !important; }
+        .pdf-export-mode h3 { font-size: 13px !important; margin-bottom: 2px !important; }
+        .pdf-export-mode .text-sm { font-size: 9.5px !important; }
+        .pdf-export-mode #cetak-legend { margin-bottom: 0px !important; padding-top: 2px !important; }
+        
+        .pdf-export-mode .pdf-page-two-content { margin-top: 0px !important; padding-top: 0px !important; }
+        .pdf-export-mode .pdf-page-two-content h4 { margin-bottom: 8px !important; padding: 4px !important; font-size: 12px !important; }
+        
+        .pdf-export-mode .pdf-page-two-content .table-resmi th,
+        .pdf-export-mode .pdf-page-two-content .table-resmi td {
+            padding: 1.5px 2px !important;
+            font-size: 7.5px !important;
+            line-height: 1.1 !important;
+        }
+
+        .pdf-export-mode .pdf-page-two-content .mt-12 { margin-top: 15px !important; }
+        .pdf-export-mode .pdf-page-two-content .pt-4 { padding-top: 5px !important; }
+
+        .pdf-export-mode .print-break-inside-avoid {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 12px !important;
+            margin-bottom: 12px !important;
+        }
+
+        /* KUSTOMISASI UNTUK CETAK VIA BROWSER KHUSUS (CTRL+P / PRINT) */
+        .print-only { display: none; }
+        @media print {
+            @page { size: A4 landscape; margin: 8mm; }
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            body { background: white !important; color: black !important; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            
+            .page-view { padding: 0 !important; overflow: visible !important; height: auto !important; }
+            #app-container { height: auto !important; display: block !important; }
+            main { height: auto !important; overflow: visible !important; background: white !important; }
+            #view-container { padding: 0 !important; overflow: visible !important; }
+            
+            /* --- CETAK RESMI (MATRIK/AGENDA) --- */
+            #cetak-area { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; }
+            .table-resmi { table-layout: fixed !important; width: 100% !important; border-collapse: collapse !important; }
+            .table-resmi th, .table-resmi td { padding: 2.5px 0.5px !important; font-size: 8px !important; border: 1px solid black !important; }
+            
+            .col-bulan { width: 6.0% !important; }
+            .col-tgl { width: 2.12% !important; }
+            .col-jml { width: 4.5% !important; }
+            .col-total { width: 5.6% !important; }
+            
+            .pdf-page-break { page-break-before: always !important; break-before: page !important; height: 0 !important; margin: 0 !important; padding: 0 !important; }
+            
+            .pdf-logo-img { max-height: 40px !important; width: auto !important; }
+            .pdf-logo-box { width: 50px !important; }
+            .tracking-wider { letter-spacing: normal !important; }
+            h1#cetak-dinas { font-size: 13px !important; line-height: 1.2 !important; margin-bottom: 1px !important; }
+            h2#cetak-namasek { font-size: 14px !important; line-height: 1.2 !important; margin-bottom: 1px !important; }
+            p#cetak-alamatsek { font-size: 8.5px !important; }
+            
+            .pb-4 { padding-bottom: 4px !important; }
+            .mb-4 { margin-bottom: 4px !important; }
+            .mb-6 { margin-bottom: 6px !important; }
+            h3 { font-size: 13px !important; margin-bottom: 2px !important; }
+            .text-sm { font-size: 9.5px !important; }
+            #cetak-legend { margin-bottom: 0px !important; padding-top: 2px !important; }
+            
+            .pdf-page-two-content { margin-top: 0px !important; padding-top: 0px !important; }
+            .pdf-page-two-content h4 { margin-bottom: 8px !important; padding: 4px !important; font-size: 12px !important; }
+            .pdf-page-two-content .table-resmi th,
+            .pdf-page-two-content .table-resmi td {
+                padding: 1.5px 2px !important;
+                font-size: 7.5px !important;
+                line-height: 1.1 !important;
+            }
+            .mt-12 { margin-top: 15px !important; }
+            .pt-4 { padding-top: 5px !important; }
+
+            .print-break-inside-avoid {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 12px !important;
+                margin-bottom: 12px !important;
+                page-break-inside: avoid;
+            }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            
+            /* Kop Surat Umum (Diluar Cetak Resmi) */
+            .print-header-kop { text-align: center; border-bottom: 3px solid black; padding-bottom: 10px; margin-bottom: 15px; }
+            .print-header-kop h1 { font-size: 18px; font-weight: bold; margin: 0; text-transform: uppercase; }
+            .print-header-kop h2 { font-size: 14px; margin: 3px 0; }
+            .print-header-kop p { margin: 0; font-size: 10px; }
+
+            /* --- CETAK KALENDER AKADEMIK (1 HALAMAN = 4 BULAN) --- */
+            #view-calendar #full-year-grid {
+                display: flex !important;
+                flex-wrap: wrap !important;
+                justify-content: space-between !important;
+                gap: 0 !important;
+                width: 100% !important;
+            }
+            #view-calendar .cal-month-grid {
+                width: 48.5% !important;
+                margin-bottom: 1.5% !important; 
+                display: flex !important;
+                flex-direction: column !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                padding: 8px !important; 
+                border: 1px solid #d1d5db !important; 
+                border-radius: 8px !important;
+                box-sizing: border-box !important;
+                background-color: white !important;
+            }
+            #view-calendar .cal-month-grid:nth-child(4n):not(:last-child) {
+                page-break-after: always !important;
+                break-after: page !important;
+            }
+            #view-calendar .cal-month-grid h4 {
+                display: block !important;
+                width: 100% !important;
+                font-size: 12px !important; 
+                margin-top: 0 !important;
+                margin-bottom: 4px !important; 
+                padding-bottom: 4px !important;
+                text-align: center !important;
+                font-weight: bold !important;
+                border-bottom: 1px solid #e5e7eb !important;
+                color: #1e3a8a !important; 
+            }
+            #view-calendar .cal-month-grid table { width: 100% !important; margin-bottom: auto !important; }
+            #view-calendar .cal-month-grid table th { padding: 2px !important; font-size: 9px !important; }
+            #view-calendar .cal-month-grid td { height: 26px !important; padding: 1px !important; }
+            #view-calendar .cal-month-grid td span { display: block !important; font-size: 10px !important; }
+            #view-calendar .cal-month-grid .cal-indicator { width: 3px !important; height: 3px !important; margin: 0.5px !important; }
+            #view-calendar .cal-month-grid .mt-3 {
+                margin-top: 5px !important; 
+                padding-top: 5px !important;
+                font-size: 8px !important; 
+                line-height: 1.2 !important;
+                border-top: 1px dashed #d1d5db !important;
+            }
+            #calendar-legend { margin-bottom: 10px !important; padding: 5px !important; font-size: 9px !important; }
+            #view-calendar .print-only.mt-10 {
+                margin-top: 15px !important;
+                font-size: 11px !important;
+                page-break-inside: avoid !important;
+                width: 100% !important;
+                float: left;
+            }
+
+            /* --- CETAK MATRIK KALENDER --- */
+            #view-matrix .bg-white { border: none !important; border-radius: 0 !important; box-shadow: none !important; padding: 0 !important; }
+            #view-matrix .overflow-x-auto { overflow: visible !important; display: block !important; width: 100% !important; }
+            #cetak-matrik-area { padding: 0 !important; margin: 0 !important; border: none !important; }
+            
+            #matrix-table { 
+                display: table !important;
+                width: 100% !important; 
+                table-layout: fixed !important; 
+                border-collapse: collapse !important; 
+                border: 1px solid black !important;
+                margin-top: 0 !important;
+            }
+            #matrix-table thead { display: table-header-group !important; }
+            #matrix-table tbody { display: table-row-group !important; }
+            #matrix-table tr { display: table-row !important; page-break-inside: avoid !important; }
+            
+            #matrix-table th, #matrix-table td { 
+                display: table-cell !important; 
+                border: 1px solid black !important; 
+                padding: 4px 2px !important; 
+                font-size: 9.5px !important; 
+                color: black !important;
+                white-space: normal !important;
+                word-wrap: break-word !important;
+                word-break: break-word !important;
+                vertical-align: middle !important;
+            }
+
+            #matrix-table thead tr.bg-brand-blue th { 
+                background-color: #1e3a8a !important; 
+                color: white !important;
+                font-weight: bold !important; 
+                text-align: center !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            
+            #matrix-table thead tr#matrix-header-title { display: none !important; }
+            
+            #matrix-print-title {
+                display: block !important;
+                text-align: center !important;
+                margin-bottom: 15px !important;
+            }
+            #matrix-print-title h3 { font-size: 16px !important; font-weight: bold !important; text-transform: uppercase !important; text-decoration: underline !important; margin: 0 0 5px 0 !important; color: black !important; }
+            #matrix-print-title p { font-size: 12px !important; margin: 0 !important; color: black !important; font-weight: bold !important; }
+            
+            #matrix-table tbody tr { background-color: white !important; }
+            #matrix-table tfoot td { 
+                background-color: #f3f4f6 !important; 
+                color: #1e3a8a !important; 
+                font-weight: bold !important; 
+                text-align: center !important; 
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            #matrix-table td:nth-child(2), #matrix-table td:nth-child(9) { text-align: left !important; }
+            
+            #matrix-signature { margin-top: 25px !important; font-size: 11px !important; width: 100% !important; display: block !important; }
+            #matrix-signature .flex { display: flex !important; justify-content: space-between !important; width: 100% !important; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 overflow-hidden" onload="initApp()">
+
+    <!-- Wadah Utama Aplikasi -->
+    <div id="app-container" class="flex h-screen w-full">
+        
+        <!-- Sidebar -->
+        <aside class="w-64 bg-brand-blue text-white flex flex-col transition-transform duration-300 no-print fixed md:relative z-50 h-full -translate-x-full md:translate-x-0" id="sidebar">
+            <div class="h-16 flex items-center justify-center border-b border-blue-800 px-4">
+                <i class="fas fa-graduation-cap text-brand-gold text-2xl mr-2"></i>
+                <span class="font-bold text-lg tracking-wide">Kaldik<span class="text-brand-gold">SD</span></span>
+            </div>
+            
+            <div class="p-4 flex items-center space-x-3 border-b border-blue-800">
+                <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-brand-blue font-bold text-xl overflow-hidden">
+                    <img id="sb-school-logo" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Logo" class="w-full h-full object-cover hidden">
+                    <i class="fas fa-school" id="sb-school-icon"></i>
+                </div>
+                <div class="overflow-hidden">
+                    <p class="text-sm font-semibold truncate" id="sb-school-name">SD Negeri 1</p>
+                    <p class="text-xs text-blue-300 truncate">Administrator</p>
+                </div>
+            </div>
+
+            <nav class="flex-1 overflow-y-auto py-4 space-y-1">
+                <a href="#" onclick="switchView('dashboard')" id="nav-dashboard" class="nav-item flex items-center px-6 py-3 text-sm font-medium bg-blue-800 text-brand-gold border-r-4 border-brand-gold">
+                    <i class="fas fa-chart-pie w-6"></i> Dashboard
+                </a>
+                
+                <!-- KATEGORI: KALENDER PENDIDIKAN -->
+                <div class="px-6 py-2 mt-2 text-[10px] font-bold text-blue-300 uppercase tracking-wider">Kalender Pendidikan</div>
+                <a href="#" onclick="switchView('calendar')" id="nav-calendar" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <div class="flex items-center"><i class="fas fa-calendar-alt w-6"></i> Kalender Akademik</div>
+                </a>
+                <a href="#" onclick="switchView('matrix')" id="nav-matrix" class="nav-item flex items-center px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <i class="fas fa-table w-6"></i> Matrik Kalender
+                </a>
+                <a href="#" onclick="switchView('agenda')" id="nav-agenda" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <div class="flex items-center"><i class="fas fa-list-check w-6"></i> Manajemen Agenda</div>
+                </a>
+                <a href="#" onclick="switchView('cetak-resmi')" id="nav-cetak-resmi" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <div class="flex items-center"><i class="fas fa-print w-6"></i> Cetak Resmi</div>
+                </a>
+
+                <!-- KATEGORI: STATISTIK -->
+                <div class="px-6 py-2 mt-2 text-[10px] font-bold text-blue-300 uppercase tracking-wider">Statistik</div>
+                <a href="#" onclick="switchView('stats')" id="nav-stats" class="nav-item flex items-center px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <i class="fas fa-chart-bar w-6"></i> Statistik Hari Efektif
+                </a>
+                
+                <!-- KATEGORI: ADMINISTRASI LAINNYA -->
+                <div class="px-6 py-2 mt-2 text-[10px] font-bold text-blue-300 uppercase tracking-wider">Administrasi Lainnya</div>
+                <a href="#" onclick="switchView('analisis-alokasi')" id="nav-analisis-alokasi" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <div class="flex items-center"><i class="fas fa-business-time w-6"></i> Analisis Alokasi Waktu</div>
+                </a>
+                <a href="#" onclick="switchView('prota-promes')" id="nav-prota-promes" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <div class="flex items-center"><i class="fas fa-book-open w-6"></i> Prota dan Promes</div>
+                </a>
+                <a href="#" onclick="switchView('cptpatp-generator')" id="nav-cptpatp-generator" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <div class="flex items-center"><i class="fas fa-cogs w-6"></i> CP, TP & ATP Generator</div>
+                </a>
+
+                <!-- KATEGORI: SISTEM -->
+                <div class="px-6 py-2 mt-2 text-[10px] font-bold text-blue-300 uppercase tracking-wider">Sistem</div>
+                <a href="#" onclick="switchView('settings')" id="nav-settings" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <div class="flex items-center"><i class="fas fa-cog w-6"></i> Pengaturan Sekolah</div>
+                </a>
+                <a href="#" onclick="switchView('backup')" id="nav-backup" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <div class="flex items-center"><i class="fas fa-database w-6"></i> Backup & Restore</div>
+                </a>
+            </nav>
+            <div class="p-4 text-xs text-center text-blue-400 border-t border-blue-800">
+                &copy; 2026 Kaldik SD App (Offline Mode)
+            </div>
+        </aside>
+
+        <!-- Konten Utama -->
+        <main class="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50 relative">
+            
+            <!-- Header -->
+            <header class="bg-white shadow-sm flex flex-col z-10 no-print w-full shrink-0">
+                <!-- Running Text Peringatan -->
+                <div class="bg-yellow-50 border-b border-yellow-100 text-yellow-700 text-xs py-1.5 px-4 flex items-center">
+                    <i class="fas fa-exclamation-triangle mr-2 text-yellow-500 shrink-0"></i>
+                    <marquee scrollamount="5" class="w-full font-medium tracking-wide">
+                        Peringatan : Aplikasi ini berjalan secara offline dan hanya menyimpan di local storage. Silahkan selalu untuk membackup data supaya tidak hilang.
+                    </marquee>
+                </div>
+
+                <div class="h-16 flex items-center justify-between px-4 md:px-6">
+                    <div class="flex items-center space-x-3">
+                        <button onclick="toggleSidebar()" class="text-gray-500 hover:text-brand-blue focus:outline-none md:hidden mr-2">
+                            <i class="fas fa-bars text-xl"></i>
+                        </button>
+                        <h2 id="topbar-title" class="text-xl font-bold text-gray-800">Dashboard</h2>
+                    </div>
+                </div>
+
+                <!-- Baris 2: Toolbar Aksi & Status -->
+                <div class="min-h-[3rem] py-2 px-4 md:px-6 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-4 overflow-x-auto hide-scrollbar">
+                    <!-- Filter Semester Global -->
+                    <div class="flex items-center shrink-0">
+                        <i class="fas fa-filter text-gray-400 text-xs mr-2"></i>
+                        <select id="global-semester" onchange="changeSemester(this.value)" class="text-sm bg-transparent outline-none font-semibold text-brand-blue cursor-pointer appearance-none pr-4" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%231e3a8a%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right center; background-size: 8px auto;">
+                            <option value="all">Semua Semester</option>
+                            <option value="1">Semester 1 (Ganjil)</option>
+                            <option value="2">Semester 2 (Genap)</option>
+                        </select>
+                    </div>
+
+                    <!-- Jam Realtime -->
+                    <div class="flex items-center space-x-3 md:space-x-4 shrink-0 bg-white px-4 py-1.5 rounded-full border border-gray-200 shadow-sm">
+                        <div class="flex items-center text-xs font-medium text-gray-600">
+                            <i class="far fa-clock text-gray-400 mr-1.5"></i> <span id="realtime-clock">00:00:00</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- KOP SURAT UMUM BAWAAN -->
+            <div class="print-only print-header-kop w-full mt-4">
+                <h1 class="print-school-name text-2xl font-bold uppercase mb-1">Nama Sekolah</h1>
+                <p class="print-school-address text-sm mb-2">Alamat Sekolah</p>
+                <h2 id="print-doc-title" class="text-lg font-semibold uppercase mt-4">Kalender Pendidikan</h2>
+                <p class="text-sm font-medium">Tahun Ajaran <span class="print-academic-year">2026/2027</span></p>
+                <p class="text-xs font-semibold text-gray-600 mt-1 print-semester-info">Semua Semester</p>
+            </div>
+
+            <!-- Wadah Tampilan Halaman -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 pb-24" id="view-container">
+                
+                <!-- TAMPILAN: DASHBOARD -->
+                <div id="view-dashboard" class="page-view fade-in block">
+                    <!-- Banner Selamat Datang -->
+                    <div class="bg-gradient-to-r from-brand-blue to-blue-600 rounded-2xl p-6 md:p-8 text-white shadow-lg mb-6 relative overflow-hidden">
+                        <div class="relative z-10 w-full md:w-2/3">
+                            <h1 class="text-2xl md:text-3xl font-bold mb-2">Selamat Datang di Sistem Kaldik</h1>
+                            <p class="text-blue-100 mb-4" id="dash-school-name">SD Negeri 1 - Tahun Ajaran 2026/2027</p>
+                            <div class="flex flex-wrap gap-3">
+                                <button onclick="switchView('calendar')" class="bg-brand-gold text-brand-blue font-bold px-5 py-2 rounded-lg hover:bg-yellow-400 transition shadow-md">
+                                    Lihat Kalender <i class="fas fa-arrow-right ml-1"></i>
+                                </button>
+                                <a href="https://drive.google.com/file/d/1rtQHp7D2yKvtpZZilLNffACRfytx_gwD/view?usp=sharing" target="_blank" class="bg-white/20 hover:bg-white/30 border border-white/30 text-white font-bold px-5 py-2 rounded-lg transition shadow-md flex items-center">
+                                    <i class="fas fa-database mr-2"></i> Sumber Data
+                                </a>
+                            </div>
+                        </div>
+                        <i class="fas fa-school absolute -bottom-4 -right-4 text-9xl text-white opacity-10"></i>
+                    </div>
+
+                    <!-- Kartu Statistik -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 text-brand-blue flex items-center justify-center text-xl mr-4">
+                                <i class="fas fa-calendar-check"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Hari Efektif Belajar</p>
+                                <p class="text-2xl font-bold text-gray-800" id="stat-effective-days">0</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+                            <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xl mr-4">
+                                <i class="fas fa-umbrella-beach"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Hari Libur</p>
+                                <p class="text-2xl font-bold text-gray-800" id="stat-holidays">0</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+                            <div class="w-12 h-12 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center text-xl mr-4">
+                                <i class="fas fa-star"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Total Agenda</p>
+                                <p class="text-2xl font-bold text-gray-800" id="stat-total-agenda">0</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
+                            <div class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xl mr-4">
+                                <i class="fas fa-calendar-week"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Minggu Efektif</p>
+                                <p class="text-2xl font-bold text-gray-800" id="stat-effective-weeks">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Agenda Terdekat -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 lg:col-span-2">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-bold text-gray-800">Agenda Terdekat</h3>
+                                <button onclick="switchView('agenda')" class="text-sm text-brand-blue hover:underline">Lihat Semua</button>
+                            </div>
+                            <div class="space-y-3" id="dash-upcoming-agenda">
+                                <!-- Diisi oleh JS -->
+                            </div>
+                        </div>
+                        
+                        <!-- Informasi Ringkas -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Informasi Kalender</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <p class="text-xs text-gray-500">Tahun Ajaran</p>
+                                    <p class="font-semibold text-gray-800" id="dash-info-year">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Semester Aktif</p>
+                                    <p class="font-semibold text-gray-800" id="dash-info-semester">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Periode</p>
+                                    <p class="font-semibold text-gray-800" id="dash-info-period">-</p>
+                                </div>
+                            </div>
+                            <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                                <p class="text-sm text-brand-blue"><i class="fas fa-info-circle mr-1"></i> Tip: Anda dapat menambahkan agenda dengan mengklik tanggal pada menu Kalender Akademik.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAMPILAN: KALENDER -->
+                <div id="view-calendar" class="page-view fade-in hidden">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 no-print gap-4">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="changeCalendarYear(-1)" class="bg-white border p-2 rounded hover:bg-gray-50"><i class="fas fa-chevron-left"></i></button>
+                            <h3 class="text-xl font-bold bg-white px-4 py-2 rounded shadow-sm border" id="calendar-view-title">Tahun Ajaran 2026/2027</h3>
+                            <button onclick="changeCalendarYear(1)" class="bg-white border p-2 rounded hover:bg-gray-50"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="openAgendaModal()" class="bg-brand-blue text-white px-4 py-2 rounded shadow-sm hover:bg-blue-700 transition whitespace-nowrap">
+                                <i class="fas fa-plus mr-1"></i> Agenda
+                            </button>
+                            <button onclick="window.print()" class="bg-gray-800 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 transition whitespace-nowrap">
+                                <i class="fas fa-print mr-1"></i> Cetak Kalender
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Keterangan Warna -->
+                    <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 text-xs font-medium no-print" id="calendar-legend">
+                        <!-- Diisi oleh JS -->
+                    </div>
+
+                    <!-- Grid Setahun Penuh -->
+                    <div id="full-year-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start">
+                        <!-- Bulan diisi oleh JS -->
+                    </div>
+                    
+                    <div class="print-only mt-10">
+                        <div class="flex justify-between px-10">
+                            <div class="text-center">
+                                <p>Mengetahui,</p>
+                                <p>Kepala Sekolah</p>
+                                <br><br><br>
+                                <p class="font-bold underline print-ks-nama">Nama KS</p>
+                                <p>NIP. <span class="print-ks-nip">NIP KS</span></p>
+                            </div>
+                            <div class="text-center">
+                                <p id="print-date-place">Bandar Lampung, 26 Mei 2026</p>
+                                <p>Admin / Tata Usaha</p>
+                                <br><br><br>
+                                <p class="font-bold underline">_________________</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAMPILAN: MATRIK -->
+                <div id="view-matrix" class="page-view fade-in hidden">
+                    <div class="flex justify-between items-center mb-6 no-print">
+                        <p class="text-gray-600">Matrik rincian kegiatan dan hari efektif per bulan berdasarkan filter semester.</p>
+                        <div class="flex gap-2">
+                            <button onclick="exportToExcel('matrix-table', 'Matrik_Kaldik')" class="bg-green-600 text-white px-4 py-2 rounded shadow-sm hover:bg-green-700 transition">
+                                <i class="fas fa-file-excel mr-1"></i> Excel
+                            </button>
+                            <button onclick="window.print()" class="bg-gray-800 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 transition">
+                                <i class="fas fa-print mr-1"></i> Cetak
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Wadah Cetak Matrik -->
+                    <div id="cetak-matrik-area" class="w-full bg-white p-2 md:p-6 rounded-xl shadow-sm border border-gray-100">
+                        
+                        <!-- Judul Matrik Kalender (Hanya Muncul saat Cetak / Print Browser) -->
+                        <div class="print-only" id="matrix-print-title">
+                            <h3>MATRIK RINCIAN KALENDER PENDIDIKAN</h3>
+                            <p>Tahun Ajaran <span class="print-academic-year">2026/2027</span> - <span class="print-semester-info">Semua Semester</span></p>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table id="matrix-table" class="w-full text-left text-sm whitespace-nowrap md:whitespace-normal">
+                                <colgroup>
+                                    <col style="width: 5%;">
+                                    <col style="width: 15%;">
+                                    <col style="width: 10%;">
+                                    <col style="width: 8%;">
+                                    <col style="width: 8%;">
+                                    <col style="width: 10%;">
+                                    <col style="width: 10%;">
+                                    <col style="width: 10%;">
+                                    <col style="width: 24%;">
+                                </colgroup>
+                                <thead class="print-break-inside-avoid">
+                                    <tr id="matrix-header-title" class="bg-white text-gray-800 border-none">
+                                        <th colspan="9" class="text-center py-6 border-none border-b-2 border-gray-800">
+                                            <div class="flex items-center justify-between px-2 md:px-8 mb-4">
+                                                <div class="w-12 md:w-20 shrink-0 flex justify-center">
+                                                    <img class="matrix-gov-logo max-w-full h-auto hidden" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Logo Dinas">
+                                                </div>
+                                                <div class="flex-1 text-center px-4">
+                                                    <h1 class="text-sm md:text-base font-bold uppercase tracking-wider print-gov-name">PEMERINTAH KOTA BANDAR LAMPUNG</h1>
+                                                    <h2 class="text-lg md:text-2xl font-bold uppercase mb-1 print-school-name">SD NEGERI 1 NUSANTARA</h2>
+                                                    <p class="text-xs md:text-sm text-gray-500 font-normal print-school-address">Jl. Pendidikan No. 1, Bandar Lampung</p>
+                                                </div>
+                                                <div class="w-12 md:w-20 shrink-0 flex justify-center">
+                                                    <img class="matrix-school-logo max-w-full h-auto hidden" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Logo Sekolah">
+                                                </div>
+                                            </div>
+                                            <h3 class="text-lg font-bold uppercase mt-2">MATRIK RINCIAN KALENDER PENDIDIKAN</h3>
+                                            <p class="text-sm font-medium mt-1">Tahun Ajaran <span class="print-academic-year">2026/2027</span></p>
+                                            <p class="text-xs font-semibold text-gray-500 mt-1 print-semester-info">Semua Semester</p>
+                                        </th>
+                                    </tr>
+                                    <tr class="bg-brand-blue text-white">
+                                        <th class="px-3 py-3 text-center border border-blue-900">No</th>
+                                        <th class="px-4 py-3 text-center border border-blue-900">Bulan</th>
+                                        <th class="px-3 py-3 text-center border border-blue-900">Jumlah Hari</th>
+                                        <th class="px-3 py-3 text-center border border-blue-900">HES</th>
+                                        <th class="px-3 py-3 text-center border border-blue-900">Jml Minggu</th>
+                                        <th class="px-3 py-3 text-center border border-blue-900">Libur Semester</th>
+                                        <th class="px-3 py-3 text-center border border-blue-900">Libur Umum</th>
+                                        <th class="px-3 py-3 text-center border border-blue-900">Libur Khusus</th>
+                                        <th class="px-4 py-3 text-center border border-blue-900">Uraian Kegiatan / Agenda</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="matrix-tbody" class="divide-y divide-gray-200">
+                                    <!-- Diisi oleh JS -->
+                                </tbody>
+                                <tfoot class="bg-gray-100 font-bold" id="matrix-tfoot">
+                                    <!-- Diisi oleh JS -->
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        <!-- Blok Tanda Tangan Cetak Matrik -->
+                        <div class="print-only mt-10 w-full" id="matrix-signature">
+                            <div class="flex justify-between px-10">
+                                <div class="text-center text-sm">
+                                    <p>Mengetahui,</p>
+                                    <p>Kepala Sekolah</p>
+                                    <br><br><br>
+                                    <p class="font-bold underline uppercase print-ks-nama">NAMA KEPSEK</p>
+                                    <p>NIP. <span class="print-ks-nip">-</span></p>
+                                </div>
+                                <div class="text-center text-sm">
+                                    <p id="print-matrix-date-place">Bandar Lampung, 26 Mei 2026</p>
+                                    <p>Wali Kelas</p>
+                                    <br><br><br>
+                                    <p class="font-bold underline uppercase print-wk-nama">NAMA WALI KELAS</p>
+                                    <p>NIP. <span class="print-wk-nip">-</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAMPILAN: AGENDA -->
+                <div id="view-agenda" class="page-view fade-in hidden">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                        <div class="relative w-full md:w-64">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                            <input type="text" id="search-agenda" placeholder="Cari agenda..." onkeyup="renderAgendaList()" class="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand-blue outline-none">
+                        </div>
+                        <div class="flex gap-2 w-full md:w-auto">
+                            <select id="filter-agenda-cat" onchange="renderAgendaList()" class="border rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand-blue outline-none bg-white font-medium">
+                                <option value="all">Semua Kategori</option>
+                                <!-- Diisi oleh JS -->
+                            </select>
+                            <button onclick="openAgendaModal()" class="bg-brand-blue text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 transition whitespace-nowrap">
+                                <i class="fas fa-plus mr-1"></i> Tambah
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-gray-50 border-b">
+                                    <tr>
+                                        <th class="px-6 py-3 font-semibold text-gray-600">Kegiatan</th>
+                                        <th class="px-6 py-3 font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 transition select-none" onclick="toggleAgendaSort()" title="Klik untuk mengurutkan berdasarkan tanggal">
+                                            <div class="flex items-center">
+                                                Tanggal <i id="agenda-sort-icon" class="fas fa-sort-down ml-2 text-brand-blue"></i>
+                                            </div>
+                                        </th>
+                                        <th class="px-6 py-3 font-semibold text-gray-600">Kategori</th>
+                                        <th class="px-6 py-3 font-semibold text-gray-600">PIC / Lokasi</th>
+                                        <th class="px-6 py-3 font-semibold text-gray-600 text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="agenda-tbody" class="divide-y divide-gray-100">
+                                    <!-- Diisi oleh JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="agenda-empty" class="p-8 text-center text-gray-500 hidden">
+                            <i class="fas fa-calendar-times text-4xl mb-3 text-gray-300"></i>
+                            <p>Agenda tidak ditemukan berdasarkan filter.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAMPILAN: STATS -->
+                <div id="view-stats" class="page-view fade-in hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Kartu Statistik -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-blue-100 flex flex-col justify-center items-center text-center relative overflow-hidden">
+                                <div class="absolute -right-4 -top-4 w-24 h-24 bg-blue-50 rounded-full opacity-50"></div>
+                                <div class="w-14 h-14 rounded-full bg-blue-100 text-brand-blue flex items-center justify-center text-2xl mb-3 relative z-10">
+                                    <i class="fas fa-calendar-check"></i>
+                                </div>
+                                <h4 class="text-gray-500 font-medium text-sm z-10">Total Hari Efektif</h4>
+                                <p class="text-4xl font-bold text-gray-800 mt-1 z-10" id="stats-page-he">0</p>
+                            </div>
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-red-100 flex flex-col justify-center items-center text-center relative overflow-hidden">
+                                <div class="absolute -right-4 -top-4 w-24 h-24 bg-red-50 rounded-full opacity-50"></div>
+                                <div class="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-2xl mb-3 relative z-10">
+                                    <i class="fas fa-umbrella-beach"></i>
+                                </div>
+                                <h4 class="text-gray-500 font-medium text-sm z-10">Total Hari Libur</h4>
+                                <p class="text-4xl font-bold text-gray-800 mt-1 z-10" id="stats-page-hl">0</p>
+                            </div>
+                        </div>
+                        <!-- Rincian Kategori berdasarkan Semester -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Distribusi Kategori Agenda</h3>
+                            <div id="stats-agenda-breakdown" class="space-y-3 max-h-64 overflow-y-auto pr-2">
+                                <!-- Diisi oleh JS -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 bg-blue-50 p-6 rounded-xl border border-blue-100 flex items-start">
+                        <i class="fas fa-lightbulb text-brand-gold text-2xl mr-4 mt-1"></i>
+                        <div>
+                            <h4 class="font-bold text-brand-blue mb-1">Catatan Analisis</h4>
+                            <p class="text-sm text-gray-700">Berdasarkan data master kalender, jumlah hari efektif SD biasanya berada pada kisaran 200 hingga 245 hari dalam satu tahun ajaran (bergantung pada kebijakan daerah 5 atau 6 hari kerja). Pastikan jumlah jam dan hari memenuhi standar kurikulum nasional berdasarkan semester yang sedang berlangsung.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAMPILAN: CETAK RESMI -->
+                <div id="view-cetak-resmi" class="page-view fade-in hidden">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 no-print gap-4">
+                        <p class="text-gray-600 text-sm md:text-base">Format Resmi Kalender Pendidikan Sekolah. Disarankan mencetak/unduh dalam format <b>Landscape</b>.</p>
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="downloadPDF()" class="bg-red-600 text-white px-4 py-2 rounded shadow-sm hover:bg-red-700 transition whitespace-nowrap">
+                                <i class="fas fa-file-pdf mr-1"></i> Download PDF
+                            </button>
+                            <button onclick="window.print()" class="bg-gray-800 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 transition whitespace-nowrap">
+                                <i class="fas fa-print mr-1"></i> Cetak Browser
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="cetak-area" class="bg-white p-2 md:p-8 rounded-xl shadow-sm border border-gray-100 print:shadow-none print:border-none print:p-0">
+                        <!-- Kop Surat Resmi Instansi/Sekolah -->
+                        <div class="flex items-center border-b-4 border-double border-black pb-4 mb-4">
+                            <div class="w-20 md:w-24 shrink-0 flex justify-center pdf-logo-box">
+                                <img id="cetak-gov-logo" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Logo Dinas" class="max-w-full h-auto hidden pdf-logo-img">
+                            </div>
+                            <div class="flex-1 text-center px-4">
+                                <h1 class="text-xl md:text-2xl font-bold uppercase tracking-wider text-center" id="cetak-dinas">PEMERINTAH KOTA BANDAR LAMPUNG</h1>
+                                <h2 class="text-lg md:text-xl font-bold uppercase text-center" id="cetak-namasek">SD NEGERI 1 NUSANTARA</h2>
+                                <p class="text-xs md:text-sm text-center" id="cetak-alamatsek">Jl. Pendidikan No. 1, Bandar Lampung</p>
+                            </div>
+                            <div class="w-20 md:w-24 shrink-0 flex justify-center pdf-logo-box">
+                                <img id="cetak-logo" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Logo" class="max-w-full h-auto hidden pdf-logo-img">
+                            </div>
+                        </div>
+
+                        <!-- HALAMAN 1: TABEL MATRIK KALENDER -->
+                        <div class="text-center mb-6">
+                            <h3 class="text-lg font-bold underline uppercase text-center">KALENDER PENDIDIKAN TAHIAN AJARAN <span id="cetak-ta"></span></h3>
+                            <p class="text-sm text-center">Nomor: <span id="cetak-nosurat">-</span></p>
+                        </div>
+
+                        <div class="print-landscape-force">
+                            <h4 class="font-bold text-sm mb-2 bg-gray-200 p-1 uppercase">Semester 1 (Ganjil)</h4>
+                            <div class="overflow-x-auto mb-6">
+                                <table class="w-full table-resmi border-collapse" id="tabel-resmi-sem1">
+                                    <!-- Diisi oleh JS -->
+                                </table>
+                            </div>
+
+                            <h4 class="font-bold text-sm mb-2 bg-gray-200 p-1 uppercase">Semester 2 (Genap)</h4>
+                            <div class="overflow-x-auto mb-6">
+                                <table class="w-full table-resmi border-collapse" id="tabel-resmi-sem2">
+                                    <!-- Diisi oleh JS -->
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Keterangan Legend Cetak -->
+                        <div class="flex flex-wrap gap-3 text-[10px] mb-4" id="cetak-legend">
+                            <!-- Diisi oleh JS -->
+                        </div>
+
+                        <div class="html2pdf__page-break pdf-page-break"></div>
+
+                        <!-- HALAMAN 2: DAFTAR AGENDA KEGIATAN RESMI & TANDA TANGAN -->
+                        <div class="pdf-page-two-content pt-2 mt-4 print:mt-0 print:pt-2">
+                            <h4 class="font-bold text-sm mb-4 bg-gray-200 p-1.5 uppercase tracking-wider text-center border border-black">Daftar Kegiatan & Agenda Akademik</h4>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 items-start print-break-inside-avoid">
+                                <div>
+                                    <h5 class="font-bold text-xs bg-brand-blue text-white p-1 text-center border border-black border-b-0">SEMESTER 1 (GANJIL)</h5>
+                                    <table class="w-full table-resmi border-collapse" id="tabel-resmi-agenda-sem1">
+                                    </table>
+                                </div>
+                                <div>
+                                    <h5 class="font-bold text-xs bg-brand-blue text-white p-1 text-center border border-black border-b-0">SEMESTER 2 (GENAP)</h5>
+                                    <table class="w-full table-resmi border-collapse" id="tabel-resmi-agenda-sem2">
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Tanda Tangan -->
+                            <div class="flex justify-between px-4 md:px-16 mt-12 pt-4 print-break-inside-avoid">
+                                <div class="text-center text-sm">
+                                    <p>Mengetahui,</p>
+                                    <p>Kepala Sekolah</p>
+                                    <br><br><br><br>
+                                    <p class="font-bold underline uppercase print-ks-nama" id="cetak-ks-nama">NAMA KEPSEK</p>
+                                    <p>NIP. <span class="print-ks-nip" id="cetak-ks-nip">-</span></p>
+                                </div>
+                                <div class="text-center text-sm">
+                                    <p id="cetak-tanggal-ttd">Bandar Lampung, 15 Juli 2026</p>
+                                    <p>Wali Kelas</p>
+                                    <br><br><br><br>
+                                    <p class="font-bold underline uppercase" id="cetak-wk-nama">NAMA WALI KELAS</p>
+                                    <p>NIP. <span id="cetak-wk-nip">-</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAMPILAN: PENGATURAN -->
+                <div id="view-settings" class="page-view fade-in hidden max-w-4xl mx-auto">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="bg-gray-50 px-6 py-4 border-b">
+                            <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-school mr-2 text-brand-blue"></i> Profil & Pengaturan Sekolah</h3>
+                        </div>
+                        <div class="p-6">
+                            <form id="form-settings" onsubmit="saveSettings(event)">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Dinas / Pemerintah</label>
+                                        <input type="text" id="set-gov-name" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">URL Logo Dinas / Pemerintah (Opsional)</label>
+                                        <input type="url" id="set-gov-logo" placeholder="https://..." class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Sekolah</label>
+                                        <input type="text" id="set-school-name" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">URL Logo Sekolah (Opsional)</label>
+                                        <input type="url" id="set-school-logo" placeholder="https://..." class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Alamat Lengkap</label>
+                                        <textarea id="set-school-address" rows="2" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none"></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Kepala Sekolah</label>
+                                        <input type="text" id="set-headmaster" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">NIP Kepala Sekolah</label>
+                                        <input type="text" id="set-nip" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                </div>
+                                
+                                <h4 class="font-bold text-gray-800 mb-4 border-b pb-2 mt-6"><i class="fas fa-file-signature mr-2"></i> Pengaturan Surat & Wali Kelas (Untuk Cetak Resmi)</h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nomor Surat Kalender</label>
+                                        <input type="text" id="set-no-surat" placeholder="Cth: 421.2/001/SD.1/2026" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Wali Kelas</label>
+                                        <input type="text" id="set-wali-kelas" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">NIP Wali Kelas</label>
+                                        <input type="text" id="set-nip-wali" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                </div>
+
+                                <h4 class="font-bold text-gray-800 mb-4 border-b pb-2"><i class="fas fa-calendar-alt mr-2"></i> Pengaturan Tahun Ajaran</h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Tahun Ajaran</label>
+                                        <input type="text" id="set-academic-year" placeholder="Contoh: 2026/2027" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Hari Kerja</label>
+                                        <select id="set-work-days" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                            <option value="6">6 Hari (Senin - Sabtu)</option>
+                                            <option value="5">5 Hari (Senin - Jumat)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Mulai (Semester Ganjil)</label>
+                                        <input type="date" id="set-start-date" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Selesai (Semester Genap)</label>
+                                        <input type="date" id="set-end-date" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-end pt-4 border-t">
+                                    <button type="button" onclick="triggerResetData()" class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg mr-2 transition">Reset Data Aplikasi</button>
+                                    <button type="submit" class="bg-brand-blue text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition">
+                                        <i class="fas fa-save mr-2"></i> Simpan Pengaturan
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAMPILAN: BACKUP & RESTORE -->
+                <div id="view-backup" class="page-view fade-in hidden max-w-4xl mx-auto">
+                    <!-- Backup -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                        <div class="bg-gray-50 px-6 py-4 border-b">
+                            <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-download mr-2 text-brand-blue"></i> Backup Data (Ekspor)</h3>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-sm text-gray-600 mb-4">Unduh seluruh data pengaturan sekolah dan agenda kalender dalam format file JSON. Simpan file ini di tempat yang aman sebagai cadangan jika Anda pindah perangkat atau ingin membersihkan data (reset) browser.</p>
+                            <button onclick="backupData()" class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700 transition">
+                                <i class="fas fa-file-export mr-2"></i> Unduh File Backup (.json)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Restore -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="bg-gray-50 px-6 py-4 border-b">
+                            <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-upload mr-2 text-brand-blue"></i> Restore Data (Impor)</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-5 rounded">
+                                <div class="flex items-start">
+                                    <i class="fas fa-exclamation-triangle text-red-500 mt-0.5 mr-3"></i>
+                                    <p class="text-sm text-red-700 font-medium"><strong>Peringatan Penting:</strong> Melakukan restore akan menimpa (menghapus) seluruh pengaturan dan agenda yang ada di aplikasi saat ini dengan data dari dalam file JSON yang Anda pilih.</p>
+                                </div>
+                            </div>
+                            
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Pilih File Backup Kaldik SD (.json)</label>
+                            <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+                                <input type="file" id="restore-file" accept=".json" class="w-full md:w-auto border rounded-lg px-3 py-2 text-sm bg-gray-50 cursor-pointer focus:ring-2 focus:ring-brand-blue outline-none">
+                                <button onclick="restoreData()" class="bg-brand-blue text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition shrink-0">
+                                    <i class="fas fa-file-import mr-2"></i> Pulihkan Data Sekarang
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL: KONFIRMASI CUSTOM -->
+    <div id="modal-confirm" class="fixed inset-0 bg-black bg-opacity-50 z-[100] hidden flex items-center justify-center fade-in backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden border border-gray-200">
+            <div class="bg-brand-blue p-4 text-white text-center flex flex-col items-center">
+                <i class="fas fa-question-circle text-4xl text-brand-gold mb-2"></i>
+                <h3 class="font-bold text-lg">Konfirmasi Tindakan</h3>
+            </div>
+            <div class="p-6">
+                <p id="confirm-message" class="text-gray-700 text-sm mb-6 text-center leading-relaxed">Apakah Anda yakin ingin melakukan tindakan ini?</p>
+                <div class="flex justify-center gap-3">
+                    <button id="btn-confirm-cancel" class="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50 transition w-24 font-medium">Batal</button>
+                    <button id="btn-confirm-yes" class="bg-brand-blue text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow w-24 font-bold">Ya</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: TAMBAH/EDIT AGENDA -->
+    <div id="modal-agenda" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-5" id="modal-agenda-content">
+            <div class="flex justify-between items-center bg-gray-50 px-6 py-4 border-b">
+                <h3 class="font-bold text-gray-800" id="modal-agenda-title">Tambah Agenda Baru</h3>
+                <button onclick="closeAgendaModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-lg"></i></button>
+            </div>
+            <form id="form-agenda" onsubmit="saveAgenda(event)" class="p-6">
+                <input type="hidden" id="agenda-id">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Kegiatan *</label>
+                    <input type="text" id="agenda-title" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Mulai *</label>
+                        <input type="date" id="agenda-start" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Selesai *</label>
+                        <input type="date" id="agenda-end" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Kategori *</label>
+                    <select id="agenda-type" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                        <!-- Diisi oleh JS -->
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Penanggung Jawab</label>
+                        <input type="text" id="agenda-pic" placeholder="Cth: Panitia PPDB" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Lokasi</label>
+                        <input type="text" id="agenda-location" placeholder="Cth: Aula Sekolah" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none">
+                    </div>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan / Deskripsi</label>
+                    <textarea id="agenda-desc" rows="2" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none"></textarea>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeAgendaModal()" class="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50 transition">Batal</button>
+                    <button type="submit" class="bg-brand-blue text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- WADAH TOAST NOTIFIKASI -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
+
+    <!-- FLOATING ACTION BUTTON (Hanya di Mobile) -->
+    <button onclick="openAgendaModal()" class="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-brand-gold text-brand-blue rounded-full shadow-lg flex items-center justify-center text-2xl z-40 focus:outline-none hover:bg-yellow-400 no-print">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <script>
+        /**
+         * KALDIK SD - LOGIKA APLIKASI OFFLINE-FIRST
+         * Vanilla JavaScript
+         */
+
+        // Menangkap error unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(e) {
+            console.warn('Unhandled Promise Rejection terdeteksi dan diabaikan secara aman:', e.reason);
+            e.preventDefault();
+        });
+
+        // --- KONSTANTA & DATA STANDAR ---
+        const CATEGORIES = {
+            'akademik': { label: 'Akademik', color: 'bg-blue-500', hex: '#3b82f6' },
+            'libur_umum': { label: 'Libur Umum', color: 'bg-red-500', hex: '#ef4444' },
+            'libur_semester': { label: 'Libur Semester', color: 'bg-orange-400', hex: '#fb923c' },
+            'ujian': { label: 'Ujian / Asesmen', color: 'bg-yellow-500', hex: '#eab308' },
+            'rapat': { label: 'Rapat Dinas', color: 'bg-purple-500', hex: '#a855f7' },
+            'ekskul': { label: 'Ekstrakurikuler', color: 'bg-green-500', hex: '#22c55e' },
+            'keagamaan': { label: 'Kegiatan Keagamaan', color: 'bg-emerald-600', hex: '#059669' },
+            'lainnya': { label: 'Lainnya', color: 'bg-gray-500', hex: '#6b7280' }
+        };
+
+        const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+        const DEFAULT_SETTINGS = {
+            schoolName: 'SD Negeri 1 Nusantara',
+            schoolAddress: 'Jl. Pendidikan No. 1, Bandar Lampung, Indonesia',
+            logo: '',
+            govName: 'PEMERINTAH KOTA BANDAR LAMPUNG',
+            govLogo: '',
+            headmaster: 'Budi Santoso, S.Pd., M.Pd.',
+            nip: '19800101 200501 1 001',
+            noSurat: '421.2/015/SD.1/VII/2026',
+            waliKelas: 'Siti Aminah, S.Pd.',
+            nipWali: '19850202 201001 2 003',
+            academicYear: '2026/2027',
+            workDays: '6', 
+            startDate: '2026-07-13', 
+            endDate: '2027-06-19'    
+        };
+
+        // --- KEADAAN GLOBAL (STATE) ---
+        let schoolData = {};
+        let agendas = [];
+        let currentYearOffset = 0; 
+        let currentSemester = 'all'; 
+        let agendaSortDirection = 'desc'; 
+        
+        // --- SISTEM MODAL KONFIRMASI CUSTOM ---
+        let confirmCallback = null;
+        function showConfirm(message, callback) {
+            document.getElementById('confirm-message').textContent = message;
+            confirmCallback = callback;
+            document.getElementById('modal-confirm').classList.remove('hidden');
+        }
+        function closeConfirm() {
+            document.getElementById('modal-confirm').classList.add('hidden');
+            confirmCallback = null;
+        }
+        document.getElementById('btn-confirm-cancel').addEventListener('click', closeConfirm);
+        document.getElementById('btn-confirm-yes').addEventListener('click', () => {
+            if (confirmCallback) confirmCallback();
+            closeConfirm();
+        });
+
+        // --- INISIALISASI ---
+        function initApp() {
+            loadData();
+            setupUI();
+            startClock();
+            switchView('dashboard');
+            
+            // Menutup sidebar pada mobile saat mengklik di luarnya
+            document.addEventListener('click', (e) => {
+                const sidebar = document.getElementById('sidebar');
+                if (window.innerWidth < 768 && !sidebar.classList.contains('-translate-x-full') && !e.target.closest('#sidebar') && !e.target.closest('button[onclick="toggleSidebar()"]')) {
+                    sidebar.classList.add('-translate-x-full');
+                }
+            });
+        }
+
+        // Memuat data dari LocalStorage
+        function loadData() {
+            try {
+                const savedSettings = localStorage.getItem('kaldik_settings');
+                schoolData = savedSettings ? JSON.parse(savedSettings) : { ...DEFAULT_SETTINGS };
+                
+                const savedAgendas = localStorage.getItem('kaldik_agendas');
+                if (savedAgendas) {
+                    agendas = JSON.parse(savedAgendas);
+                    agendas = agendas.map(a => {
+                        if (a.type === 'libur_nasional') a.type = 'libur_umum';
+                        return a;
+                    });
+                } else {
+                    agendas = [
+                        // --- SEMESTER 1 (GANJIL) ---
+                        { id: generateId(), title: 'Hari Pertama Masuk Sekolah & MPLS', start: '2026-07-13', end: '2026-07-15', type: 'akademik', pic: 'Panitia MPLS', location: 'Lingkungan Sekolah', desc: 'Masa Pengenalan Lingkungan Sekolah untuk siswa baru kelas 1.' },
+                        { id: generateId(), title: 'Tahun Baru Islam 1448 H', start: '2026-07-16', end: '2026-07-16', type: 'libur_umum', pic: 'Humas', location: 'Rumah Masing-masing', desc: 'Libur Hari Besar Keagamaan' },
+                        { id: generateId(), title: 'Proklamasi Hari Kemerdekaan RI', start: '2026-08-17', end: '2026-08-17', type: 'libur_umum', pic: 'Kesiswaan', location: 'Lapangan Upacara', desc: 'Upacara Bendera peringatan HUT Kemerdekaan RI.' },
+                        { id: generateId(), title: 'Maulid Nabi Muhammad SAW', start: '2026-09-15', end: '2026-09-15', type: 'libur_umum', pic: 'Guru Agama', location: 'Masjid Sekolah', desc: 'Peringatan kelahiran Nabi Muhammad SAW.' },
+                        { id: generateId(), title: 'Penilaian Tengah Semester (PTS) Ganjil', start: '2026-09-21', end: '2026-09-26', type: 'ujian', pic: 'Kurikulum', location: 'Ruang Kelas', desc: 'Evaluasi tengah semester ganjil.' },
+                        { id: generateId(), title: 'Hari Pahlawan (Upacara Sekolah)', start: '2026-11-10', end: '2026-11-10', type: 'akademik', pic: 'Kesiswaan', location: 'Lapangan Sekolah', desc: 'Upacara peringatan Hari Pahlawan.' },
+                        { id: generateId(), title: 'Penilaian Akhir Semester (PAS) Ganjil', start: '2026-11-30', end: '2026-12-05', type: 'ujian', pic: 'Panitia PAS', location: 'Ruang Kelas', desc: 'Evaluasi akhir semester ganjil.' },
+                        { id: generateId(), title: 'Penyerahan Buku Laporan Hasil Belajar (Raport) Ganjil', start: '2026-12-18', end: '2026-12-18', type: 'akademik', pic: 'Wali Kelas', location: 'Ruang Kelas', desc: 'Pembagian Raport Semester Ganjil.' },
+                        { id: generateId(), title: 'Hari Raya Natal', start: '2026-12-25', end: '2026-12-25', type: 'libur_umum', pic: 'Humas', location: 'Rumah Masing-masing', desc: 'Libur Keagamaan Umum' },
+                        { id: generateId(), title: 'Libur Akhir Semester Ganjil', start: '2026-12-21', end: '2026-12-31', type: 'libur_semester', pic: 'Kurikulum', location: 'Luar Sekolah', desc: 'Libur jeda semester.' },
+                        
+                        // --- SEMESTER 2 (GENAP) ---
+                        { id: generateId(), title: 'Tahun Baru Masehi 2027', start: '2027-01-01', end: '2027-01-01', type: 'libur_umum', pic: 'Humas', location: 'Rumah Masing-masing', desc: 'Libur Tahun Baru.' },
+                        { id: generateId(), title: 'Hari Pertama Masuk Semester Genap', start: '2027-01-04', end: '2027-01-04', type: 'akademik', pic: 'Kurikulum', location: 'Sekolah', desc: 'Awal kegiatan belajar mengajar Semester 2.' },
+                        { id: generateId(), title: 'Isra Mi’raj Nabi Muhammad SAW', start: '2027-02-05', end: '2027-02-05', type: 'libur_umum', pic: 'Guru Agama', location: 'Masjid Sekolah', desc: 'Peringatan Isra Mi\'raj.' },
+                        { id: generateId(), title: 'Tahun Baru Imlek 2578', start: '2027-02-06', end: '2027-02-06', type: 'libur_umum', pic: 'Humas', location: 'Rumah Masing-masing', desc: 'Libur Tahun Baru Imlek.' },
+                        { id: generateId(), title: 'Penilaian Tengah Semester (PTS) Genap', start: '2027-03-01', end: '2027-03-06', type: 'ujian', pic: 'Kurikulum', location: 'Ruang Kelas', desc: 'Evaluasi tengah semester genap.' },
+                        { id: generateId(), title: 'Hari Raya Nyepi (Tahun Baru Saka 1949)', start: '2027-03-08', end: '2027-03-08', type: 'libur_umum', pic: 'Humas', location: 'Rumah Masing-masing', desc: 'Libur Nyepi.' },
+                        { id: generateId(), title: 'Perkiraan Libur Awal Puasa Ramadhan 1448 H', start: '2027-03-09', end: '2027-03-11', type: 'keagamaan', pic: 'Guru Agama', location: 'Rumah Masing-masing', desc: 'Libur awal bulan suci Ramadhan.' },
+                        { id: generateId(), title: 'Wafat Yesus Kristus', start: '2027-03-26', end: '2027-03-26', type: 'libur_umum', pic: 'Humas', location: 'Rumah Masing-masing', desc: 'Libur Peringatan Wafat Yesus Kristus.' },
+                        { id: generateId(), title: 'Libur Sekitar Hari Raya Idul Fitri 1448 H (Lebaran)', start: '2027-04-05', end: '2027-04-14', type: 'libur_umum', pic: 'Humas', location: 'Luar Sekolah', desc: 'Libur umum dan cuti bersama Idul Fitri.' },
+                        { id: generateId(), title: 'Hari Buruh Internasional', start: '2027-05-01', end: '2027-05-01', type: 'libur_umum', pic: 'Humas', location: 'Rumah Masing-masing', desc: 'Libur Hari Buruh.' },
+                        { id: generateId(), title: 'Hari Raya Waisak 2571', start: '2027-05-20', end: '2027-05-20', type: 'libur_umum', pic: 'Humas', location: 'Rumah Masing-masing', desc: 'Libur Hari Raya Waisak.' },
+                        { id: generateId(), title: 'Hari Kebangkitan Nasional (Upacara Sekolah)', start: '2027-05-20', end: '2027-05-20', type: 'akademik', pic: 'Kesiswaan', location: 'Lapangan Sekolah', desc: 'Upacara peringatan Harkitnas.' },
+                        { id: generateId(), title: 'Kenaikan Yesus Kristus', start: '2027-05-27', end: '2027-05-27', type: 'libur_umum', pic: 'Humas', location: 'Rumah Masing-masing', desc: 'Libur Kenaikan.' },
+                        { id: generateId(), title: 'Hari Lahir Pancasila', start: '2027-06-01', end: '2027-06-01', type: 'libur_umum', pic: 'Humas', location: 'Lapangan Sekolah', desc: 'Upacara Umum Hari Lahir Pancasila.' },
+                        { id: generateId(), title: 'Penilaian Akhir Tahun (PAT) / Asesmen Akhir', start: '2027-06-07', end: '2027-06-12', type: 'ujian', pic: 'Panitia PAT', location: 'Ruang Kelas', desc: 'Asesmen Sumatif Akhir Jenjang / Kelas.' },
+                        { id: generateId(), title: 'Hari Raya Idul Adha 1448 H', start: '2027-06-16', end: '2027-06-16', type: 'libur_umum', pic: 'Panitia Qurban', location: 'Halaman Sekolah', desc: 'Libur Hari Raya Idul Adha dan penyembelihan hewan qurban.' },
+                        { id: generateId(), title: 'Penyerahan Buku Laporan Hasil Belajar (Raport) Kenaikan Kelas', start: '2027-06-18', end: '2027-06-18', type: 'akademik', pic: 'Wali Kelas', location: 'Ruang Kelas', desc: 'Pembagian Raport Kenaikan Kelas.' },
+                        { id: generateId(), title: 'Libur Akhir Tahun Pelajaran', start: '2027-06-21', end: '2027-07-10', type: 'libur_semester', pic: 'Panitia PPDB', location: 'Luar Sekolah', desc: 'Libur akhir tahun pelajaran sekolah dasar.' }
+                    ];
+                    localStorage.setItem('kaldik_agendas', JSON.stringify(agendas));
+                }
+            } catch (e) {
+                console.warn('Gagal memuat dari localStorage:', e);
+                schoolData = { ...DEFAULT_SETTINGS };
+            }
+        }
+
+        // Mengatur elemen UI
+        function setupUI() {
+            document.querySelectorAll('.print-school-name').forEach(el => el.textContent = schoolData.schoolName);
+            document.querySelectorAll('.print-school-address').forEach(el => el.textContent = schoolData.schoolAddress);
+            document.querySelectorAll('.print-academic-year').forEach(el => el.textContent = schoolData.academicYear);
+            document.querySelectorAll('.print-ks-nama').forEach(el => el.textContent = schoolData.headmaster);
+            document.querySelectorAll('.print-ks-nip').forEach(el => el.textContent = schoolData.nip ? schoolData.nip : "-");
+            
+            document.querySelectorAll('.print-gov-name').forEach(el => el.textContent = schoolData.govName || 'PEMERINTAH KOTA BANDAR LAMPUNG');
+            document.querySelectorAll('.print-wk-nama').forEach(el => el.textContent = schoolData.waliKelas || '-');
+            document.querySelectorAll('.print-wk-nip').forEach(el => el.textContent = schoolData.nipWali || '-');
+
+            document.querySelectorAll('.matrix-gov-logo').forEach(img => {
+                if (schoolData.govLogo) {
+                    img.src = schoolData.govLogo;
+                    img.classList.remove('hidden');
+                } else {
+                    img.classList.add('hidden');
+                }
+            });
+
+            document.querySelectorAll('.matrix-school-logo').forEach(img => {
+                if (schoolData.logo) {
+                    img.src = schoolData.logo;
+                    img.classList.remove('hidden');
+                } else {
+                    img.classList.add('hidden');
+                }
+            });
+
+            const sbSchoolName = document.getElementById('sb-school-name');
+            if (sbSchoolName) sbSchoolName.textContent = schoolData.schoolName;
+
+            const dashSchoolName = document.getElementById('dash-school-name');
+            if (dashSchoolName) dashSchoolName.textContent = `${schoolData.schoolName} - Tahun Ajaran ${schoolData.academicYear}`;
+
+            const dashInfoYear = document.getElementById('dash-info-year');
+            if (dashInfoYear) dashInfoYear.textContent = schoolData.academicYear;
+            
+            const sbSchoolLogo = document.getElementById('sb-school-logo');
+            const sbSchoolIcon = document.getElementById('sb-school-icon');
+            if (schoolData.logo) {
+                if (sbSchoolIcon) sbSchoolIcon.classList.add('hidden');
+                if (sbSchoolLogo) {
+                    sbSchoolLogo.src = schoolData.logo;
+                    sbSchoolLogo.classList.remove('hidden');
+                }
+            } else {
+                if (sbSchoolLogo) sbSchoolLogo.classList.add('hidden');
+                if (sbSchoolIcon) sbSchoolIcon.classList.remove('hidden');
+            }
+
+            const setSchoolName = document.getElementById('set-school-name');
+            if (setSchoolName) setSchoolName.value = schoolData.schoolName;
+
+            const setSchoolLogo = document.getElementById('set-school-logo');
+            if (setSchoolLogo) setSchoolLogo.value = schoolData.logo || '';
+
+            const setGovName = document.getElementById('set-gov-name');
+            if (setGovName) setGovName.value = schoolData.govName || '';
+
+            const setGovLogo = document.getElementById('set-gov-logo');
+            if (setGovLogo) setGovLogo.value = schoolData.govLogo || '';
+
+            const setSchoolAddress = document.getElementById('set-school-address');
+            if (setSchoolAddress) setSchoolAddress.value = schoolData.schoolAddress;
+
+            const setHeadmaster = document.getElementById('set-headmaster');
+            if (setHeadmaster) setHeadmaster.value = schoolData.headmaster;
+
+            const setNip = document.getElementById('set-nip');
+            if (setNip) setNip.value = schoolData.nip;
+
+            const setAcademicYear = document.getElementById('set-academic-year');
+            if (setAcademicYear) setAcademicYear.value = schoolData.academicYear;
+
+            const setWorkDays = document.getElementById('set-work-days');
+            if (setWorkDays) setWorkDays.value = schoolData.workDays;
+
+            const setStartDate = document.getElementById('set-start-date');
+            if (setStartDate) setStartDate.value = schoolData.startDate;
+
+            const setEndDate = document.getElementById('set-end-date');
+            if (setEndDate) setEndDate.value = schoolData.endDate;
+
+            const setNoSurat = document.getElementById('set-no-surat');
+            if (setNoSurat) setNoSurat.value = schoolData.noSurat || '';
+
+            const setWaliKelas = document.getElementById('set-wali-kelas');
+            if (setWaliKelas) setWaliKelas.value = schoolData.waliKelas || '';
+
+            const setNipWali = document.getElementById('set-nip-wali');
+            if (setNipWali) setNipWali.value = schoolData.nipWali || '';
+
+            const selectType = document.getElementById('agenda-type');
+            const filterType = document.getElementById('filter-agenda-cat');
+            if (selectType) {
+                selectType.innerHTML = '';
+                for (const [key, val] of Object.entries(CATEGORIES)) {
+                    selectType.innerHTML += `<option value="${key}">${val.label}</option>`;
+                }
+            }
+            if (filterType) {
+                filterType.innerHTML = `<option value="all">Semua Kategori</option>`;
+                for (const [key, val] of Object.entries(CATEGORIES)) {
+                    filterType.innerHTML += `<option value="${key}">${val.label}</option>`;
+                }
+            }
+
+            const legendContainer = document.getElementById('calendar-legend');
+            if (legendContainer) {
+                legendContainer.innerHTML = `<div class="flex items-center"><span class="w-3 h-3 rounded-full bg-blue-100 border border-blue-300 mr-1"></span> Hari Efektif</div>
+                                             <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-red-100 border border-red-300 mr-1"></span> Hari Minggu / Libur Default</div>`;
+                for (const [key, val] of Object.entries(CATEGORIES)) {
+                    legendContainer.innerHTML += `<div class="flex items-center"><span class="w-3 h-3 rounded-full ${val.color} mr-1"></span> ${val.label}</div>`;
+                }
+            }
+
+            const startD = new Date(schoolData.startDate);
+            const dateStrFormatted = `${startD.getDate()} ${MONTH_NAMES[startD.getMonth()]} ${startD.getFullYear()}`;
+            
+            const printDatePlace = document.getElementById('print-date-place');
+            if (printDatePlace) printDatePlace.textContent = `Bandar Lampung, ${dateStrFormatted}`;
+            
+            const printMatrixDatePlace = document.getElementById('print-matrix-date-place');
+            if (printMatrixDatePlace) printMatrixDatePlace.textContent = `Bandar Lampung, ${dateStrFormatted}`;
+        }
+
+        // --- SISTEM FILTER SEMESTER ---
+        function changeSemester(value) {
+            currentSemester = value;
+            
+            const semText = value === 'all' ? "Semua Semester" : (value === '1' ? "Semester 1 (Ganjil)" : "Semester 2 (Genap)");
+            document.querySelectorAll('.print-semester-info').forEach(el => el.textContent = semText);
+
+            const activeNav = document.querySelector('.nav-item.bg-blue-800');
+            if (activeNav) {
+                const activeView = activeNav.id.replace('nav-', '');
+                switchView(activeView);
+            }
+            showToast(`Filter Semester telah diterapkan!`, 'success');
+        }
+
+        function getDateSemester(dateStr) {
+            const date = new Date(dateStr);
+            const month = date.getMonth(); // 0-11
+            if (month >= 6 && month <= 11) {
+                return '1';
+            } else {
+                return '2';
+            }
+        }
+
+        // --- NAVIGASI HALAMAN ---
+        function switchView(viewId) {
+            if (viewId === 'analisis-alokasi') {
+                window.open('https://supriyadi911.github.io/analisis-alokasi-waktu/', '_blank');
+                return;
+            }
+            if (viewId === 'prota-promes') {
+                window.open('https://supriyadi911.github.io/prota-promes/', '_blank');
+                return;
+            }
+            if (viewId === 'cptpatp-generator') {
+                window.open('https://supriyadi911.github.io/TP-dan-ATP-Generator/', '_blank');
+                return;
+            }
+
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('bg-blue-800', 'text-brand-gold', 'border-r-4', 'border-brand-gold');
+                el.classList.add('text-gray-300');
+            });
+            const activeNav = document.getElementById(`nav-${viewId}`);
+            if(activeNav) {
+                activeNav.classList.remove('text-gray-300');
+                activeNav.classList.add('bg-blue-800', 'text-brand-gold', 'border-r-4', 'border-brand-gold');
+            }
+
+            document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
+            const targetView = document.getElementById(`view-${viewId}`);
+            if(targetView) {
+                targetView.classList.remove('hidden');
+            }
+
+            const titles = {
+                'dashboard': 'Dashboard',
+                'calendar': 'Kalender Akademik',
+                'matrix': 'Matrik Kalender',
+                'agenda': 'Manajemen Agenda',
+                'stats': 'Statistik Hari Efektif',
+                'cetak-resmi': 'Cetak Resmi Kalender',
+                'settings': 'Pengaturan Sekolah',
+                'backup': 'Backup & Restore Data'
+            };
+            document.getElementById('topbar-title').textContent = titles[viewId] || 'Kaldik SD';
+
+            if (window.innerWidth < 768) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+            }
+
+            const printHeaderKop = document.querySelector('.print-header-kop');
+            const printDocTitle = document.getElementById('print-doc-title');
+            
+            if (printHeaderKop) {
+                if (viewId === 'cetak-resmi' || viewId === 'matrix') {
+                    printHeaderKop.classList.remove('print-only');
+                    printHeaderKop.classList.add('hidden');
+                } else {
+                    printHeaderKop.classList.add('print-only');
+                    printHeaderKop.classList.remove('hidden');
+                    
+                    if (printDocTitle) {
+                        printDocTitle.textContent = 'KALENDER PENDIDIKAN';
+                    }
+                }
+            }
+
+            if (viewId === 'dashboard') renderDashboard();
+            if (viewId === 'calendar') renderCalendar();
+            if (viewId === 'matrix') renderMatrix();
+            if (viewId === 'agenda') renderAgendaList();
+            if (viewId === 'stats') renderStats();
+            if (viewId === 'cetak-resmi') renderCetakResmi();
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('-translate-x-full');
+        }
+
+        // --- LOGIKA UTAMA DAN RENDER ---
+        function calculateStats() {
+            const start = new Date(schoolData.startDate);
+            const end = new Date(schoolData.endDate);
+            let effectiveDays = 0;
+            let holidays = 0;
+            let totalAgenda = 0;
+
+            const workDaysAllowed = parseInt(schoolData.workDays);
+            const holidayTypes = ['libur_umum', 'libur_semester', 'keagamaan'];
+
+            let curr = new Date(start);
+            while (curr <= end) {
+                const dStr = toYMD(curr);
+                const daySem = getDateSemester(dStr);
+
+                if (currentSemester === 'all' || daySem === currentSemester) {
+                    const dayOfWeek = curr.getDay(); 
+                    let isHoliday = false;
+                    
+                    if (dayOfWeek === 0) isHoliday = true;
+                    if (workDaysAllowed === 5 && dayOfWeek === 6) isHoliday = true;
+
+                    let hasHolidayAgenda = false;
+                    for (let a of agendas) {
+                        if (holidayTypes.includes(a.type) && dStr >= a.start && dStr <= a.end) {
+                            hasHolidayAgenda = true; 
+                            break;
+                        }
+                    }
+
+                    if (isHoliday || hasHolidayAgenda) {
+                        holidays++;
+                    } else {
+                        effectiveDays++;
+                    }
+                }
+                curr.setDate(curr.getDate() + 1);
+            }
+
+            agendas.forEach(a => {
+                const agendaSem = getDateSemester(a.start);
+                if (currentSemester === 'all' || agendaSem === currentSemester) {
+                    totalAgenda++;
+                }
+            });
+
+            const effectiveWeeks = Math.floor(effectiveDays / workDaysAllowed);
+
+            return { effectiveDays, holidays, totalAgenda, effectiveWeeks };
+        }
+
+        function renderDashboard() {
+            const stats = calculateStats();
+            document.getElementById('stat-effective-days').textContent = stats.effectiveDays;
+            document.getElementById('stat-holidays').textContent = stats.holidays;
+            document.getElementById('stat-total-agenda').textContent = stats.totalAgenda;
+            document.getElementById('stat-effective-weeks').textContent = stats.effectiveWeeks;
+
+            const todayStr = toYMD(new Date());
+            const upcoming = [...agendas]
+                .filter(a => a.end >= todayStr && (currentSemester === 'all' || getDateSemester(a.start) === currentSemester))
+                .sort((a, b) => a.start.localeCompare(b.start))
+                .slice(0, 5);
+
+            const container = document.getElementById('dash-upcoming-agenda');
+            container.innerHTML = '';
+            
+            if (upcoming.length === 0) {
+                container.innerHTML = `<p class="text-gray-500 text-sm">Tidak ada agenda dalam waktu dekat.</p>`;
+            } else {
+                upcoming.forEach(a => {
+                    const cat = CATEGORIES[a.type] || CATEGORIES['lainnya'];
+                    const dateStr = a.start === a.end ? formatDateIndo(a.start) : `${formatDateIndo(a.start)} - ${formatDateIndo(a.end)}`;
+                    
+                    container.innerHTML += `
+                        <div class="flex items-start border-l-4 border-l-blue-500 pl-3 py-1 mb-2">
+                            <div class="flex-1">
+                                <h4 class="text-sm font-bold text-gray-800">${a.title}</h4>
+                                <p class="text-xs text-gray-500"><i class="far fa-calendar-alt mr-1"></i> ${dateStr}</p>
+                            </div>
+                            <span class="text-[10px] px-2 py-1 rounded-full text-white ${cat.color}">${cat.label}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            const cm = new Date().getMonth();
+            const semesterText = (cm >= 6 && cm <= 11) ? "1 (Ganjil)" : "2 (Genap)";
+            document.getElementById('dash-info-semester').textContent = `Semester ${semesterText}`;
+            document.getElementById('dash-info-period').textContent = `${formatDateIndo(schoolData.startDate)} sampai ${formatDateIndo(schoolData.endDate)}`;
+        }
+
+        // --- SISTEM KALENDER ---
+        function changeCalendarYear(dir) {
+            currentYearOffset += dir;
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('full-year-grid');
+            grid.innerHTML = '';
+            
+            const startD = new Date(schoolData.startDate);
+            const baseYear = startD.getFullYear() + currentYearOffset;
+            const startMonth = startD.getMonth();
+            
+            let semText = "";
+            if (currentSemester === '1') semText = " - Semester 1 (Ganjil)";
+            else if (currentSemester === '2') semText = " - Semester 2 (Genap)";
+
+            document.getElementById('calendar-view-title').textContent = 
+                (currentYearOffset === 0 ? `Tahun Ajaran ${schoolData.academicYear}` : `Tahun ${baseYear} - ${baseYear+1}`) + semText;
+
+            for (let i = 0; i < 12; i++) {
+                let m = (startMonth + i) % 12;
+                let y = baseYear + Math.floor((startMonth + i) / 12);
+                
+                let isSem1Month = (m >= 6 && m <= 11); 
+                let matchesFilter = (currentSemester === 'all') || 
+                                    (currentSemester === '1' && isSem1Month) || 
+                                    (currentSemester === '2' && !isSem1Month);
+
+                if (matchesFilter) {
+                    grid.appendChild(createMonthGrid(y, m));
+                }
+            }
+        }
+
+        function createMonthGrid(year, month) {
+            const monthDiv = document.createElement('div');
+            monthDiv.className = 'cal-month-grid bg-white p-4 rounded-xl shadow-sm border border-gray-100 print-break-inside-avoid flex flex-col justify-start';
+            
+            const title = document.createElement('h4');
+            title.className = 'text-center font-bold text-brand-blue mb-3 text-lg border-b pb-2 tracking-wide uppercase';
+            title.textContent = `${MONTH_NAMES[month]} ${year}`;
+            monthDiv.appendChild(title);
+
+            const table = document.createElement('table');
+            table.className = 'w-full text-center text-sm table-fixed mb-2';
+            
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr class="text-gray-500 font-semibold text-xs">
+                    <th class="py-1 text-red-500">M</th>
+                    <th>S</th><th>S</th><th>R</th><th>K</th><th>J</th><th>S</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            let date = 1;
+            for (let i = 0; i < 6; i++) {
+                let row = document.createElement('tr');
+                let hasValidDay = false;
+
+                for (let j = 0; j < 7; j++) {
+                    let td = document.createElement('td');
+                    td.className = 'py-1 px-1 h-10 align-top';
+                    
+                    if (i === 0 && j < firstDay) {
+                    } else if (date > daysInMonth) {
+                    } else {
+                        hasValidDay = true;
+                        const fullDate = `${year}-${String(month+1).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+                        
+                        let isWeekend = (j === 0) || (schoolData.workDays === '5' && j === 6);
+                        let bgClass = isWeekend ? 'bg-red-50 text-red-600 font-medium rounded' : 'bg-blue-50 text-gray-800 rounded cal-day cursor-pointer';
+                        
+                        let dayAgendas = agendas.filter(a => fullDate >= a.start && fullDate <= a.end);
+                        let isHolidayAgenda = dayAgendas.some(a => ['libur_umum', 'libur_semester'].includes(a.type));
+                        
+                        if (isHolidayAgenda) bgClass = 'bg-red-100 text-red-600 font-bold rounded cal-day cursor-pointer';
+
+                        td.innerHTML = `<div class="w-full h-full flex flex-col items-center justify-start ${bgClass} tooltip" onclick="dateClicked('${fullDate}')">
+                            <span class="mt-1">${date}</span>
+                            <div class="flex flex-wrap justify-center w-full px-1 gap-0.5 mt-auto mb-1">
+                                ${dayAgendas.map(a => `<span class="cal-indicator ${CATEGORIES[a.type].color}"></span>`).join('')}
+                            </div>
+                            ${dayAgendas.length > 0 ? `<span class="tooltip-text">${dayAgendas.map(a=>a.title).join('<br>')}</span>` : ''}
+                        </div>`;
+                        date++;
+                    }
+                    row.appendChild(td);
+                }
+                if (hasValidDay) tbody.appendChild(row);
+                if (date > daysInMonth) break;
+            }
+            
+            table.appendChild(tbody);
+            monthDiv.appendChild(table);
+
+            const firstDayOfMonthStr = toYMD(new Date(year, month, 1));
+            const lastDayOfMonthStr = toYMD(new Date(year, month + 1, 0));
+
+            let monthAgendas = agendas.filter(a => a.start <= lastDayOfMonthStr && a.end >= firstDayOfMonthStr);
+            
+            if (monthAgendas.length > 0) {
+                const agendaListDiv = document.createElement('div');
+                agendaListDiv.className = 'mt-3 pt-3 border-t border-gray-100 text-[11px] space-y-1.5 pb-1';
+                
+                monthAgendas.sort((a, b) => a.start.localeCompare(b.start));
+                
+                monthAgendas.forEach(a => {
+                    const cat = CATEGORIES[a.type] || CATEGORIES['lainnya'];
+                    let dStart = new Date(a.start);
+                    let dEnd = new Date(a.end);
+                    let dateLabel = '';
+                    
+                    if (a.start === a.end) {
+                        dateLabel = dStart.getDate();
+                    } else {
+                        let sStr = dStart.getMonth() === month ? dStart.getDate() : `${dStart.getDate()}/${dStart.getMonth()+1}`;
+                        let eStr = dEnd.getMonth() === month ? dEnd.getDate() : `${dEnd.getDate()}/${dEnd.getMonth()+1}`;
+                        dateLabel = `${sStr}-${eStr}`;
+                    }
+
+                    agendaListDiv.innerHTML += `
+                        <div class="flex items-start">
+                            <span class="w-2 h-2 rounded-full ${cat.color} mt-1 mr-1.5 shrink-0 shadow-sm"></span>
+                            <span class="text-brand-blue font-semibold mr-1 whitespace-nowrap w-8 text-right">${dateLabel}</span>
+                            <span class="text-gray-700 leading-tight">${a.title}</span>
+                        </div>
+                    `;
+                });
+                monthDiv.appendChild(agendaListDiv);
+            }
+
+            return monthDiv;
+        }
+
+        function dateClicked(dateStr) {
+            document.getElementById('agenda-start').value = dateStr;
+            document.getElementById('agenda-end').value = dateStr;
+            openAgendaModal();
+        }
+
+        // --- TABEL MATRIK KALENDER ---
+        function renderMatrix() {
+            const tbody = document.getElementById('matrix-tbody');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+            
+            const startD = new Date(schoolData.startDate);
+            const endD = new Date(schoolData.endDate);
+            let currD = new Date(startD);
+            currD.setDate(1);
+            
+            let no = 1;
+            let totalHES = 0, totalMinggu = 0, totalLiburSem = 0, totalLiburUmum = 0, totalLiburKhusus = 0, totalHari = 0;
+            const workDaysAllowed = parseInt(schoolData.workDays);
+
+            while (currD <= endD || (currD.getFullYear() === endD.getFullYear() && currD.getMonth() <= endD.getMonth())) {
+                const year = currD.getFullYear();
+                const month = currD.getMonth();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                
+                let isSem1Month = (month >= 6 && month <= 11);
+                let matchesFilter = (currentSemester === 'all') || 
+                                    (currentSemester === '1' && isSem1Month) || 
+                                    (currentSemester === '2' && !isSem1Month);
+
+                if (!matchesFilter) {
+                    currD.setMonth(currD.getMonth() + 1);
+                    continue;
+                }
+
+                let hes = 0;
+                let libur_minggu = 0; 
+                let libur_semester = 0;
+                let libur_umum = 0;
+                let libur_khusus = 0;
+                let monthAgendas = [];
+
+                for (let d = 1; d <= daysInMonth; d++) {
+                    let dObj = new Date(year, month, d);
+                    let dStr = toYMD(dObj);
+                    
+                    let isSunday = dObj.getDay() === 0;
+                    let isSaturday = dObj.getDay() === 6;
+
+                    if (dStr < schoolData.startDate) {
+                        if (month === startD.getMonth() && year === startD.getFullYear()) {
+                            if (isSunday) {
+                                libur_minggu++;
+                            } else if (isSaturday && workDaysAllowed === 5) {
+                                libur_khusus++;
+                            } else {
+                                libur_semester++;
+                            }
+                            continue;
+                        } else {
+                            continue; 
+                        }
+                    }
+
+                    if (dStr > schoolData.endDate) continue;
+
+                    let dAgendas = agendas.filter(a => a.start <= dStr && a.end >= dStr);
+                    
+                    let hasLiburUmum = dAgendas.some(a => a.type === 'libur_umum');
+                    let hasLiburSemester = dAgendas.some(a => a.type === 'libur_semester');
+                    let hasLiburKhusus = dAgendas.some(a => a.type === 'keagamaan');
+
+                    if (isSunday) {
+                        libur_minggu++; 
+                    } else if (hasLiburUmum) {
+                        libur_umum++; 
+                    } else if (hasLiburSemester) {
+                        libur_semester++; 
+                    } else if (hasLiburKhusus) {
+                        libur_khusus++; 
+                    } else if (isSaturday && workDaysAllowed === 5) {
+                        libur_khusus++;
+                    } else {
+                        hes++;
+                    }
+
+                    dAgendas.forEach(a => {
+                        if (!monthAgendas.find(ma => ma.id === a.id)) {
+                            monthAgendas.push(a);
+                        }
+                    });
+                }
+
+                let agendaStr = monthAgendas.map(a => {
+                    let dateLabel = a.start === a.end ? formatDateIndo(a.start).split(' ')[0] : `${formatDateIndo(a.start).split(' ')[0]}-${formatDateIndo(a.end).split(' ')[0]}`;
+                    return `• ${a.title} (${dateLabel})`;
+                }).join('<br>');
+                if(!agendaStr) agendaStr = '-';
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="px-3 py-2 text-center border border-gray-300 md:border-r">${no++}</td>
+                        <td class="px-4 py-2 border border-gray-300 md:border-r font-semibold text-brand-blue">${MONTH_NAMES[month]} ${year}</td>
+                        <td class="px-3 py-2 text-center border border-gray-300 md:border-r font-semibold text-gray-700">${daysInMonth}</td>
+                        <td class="px-3 py-2 text-center border border-gray-300 md:border-r font-semibold text-blue-600">${hes}</td>
+                        <td class="px-3 py-2 text-center border border-gray-300 md:border-r">${libur_minggu}</td>
+                        <td class="px-3 py-2 text-center border border-gray-300 md:border-r text-orange-600">${libur_semester}</td>
+                        <td class="px-3 py-2 text-center border border-gray-300 md:border-r text-red-600">${libur_umum}</td>
+                        <td class="px-3 py-2 text-center border border-gray-300 md:border-r text-emerald-600">${libur_khusus}</td>
+                        <td class="px-4 py-2 border border-gray-300 md:border-r text-xs text-left">${agendaStr}</td>
+                    </tr>
+                `;
+
+                totalHES += hes;
+                totalMinggu += libur_minggu;
+                totalLiburSem += libur_semester;
+                totalLiburUmum += libur_umum;
+                totalLiburKhusus += libur_khusus;
+                totalHari += daysInMonth;
+
+                currD.setMonth(currD.getMonth() + 1);
+            }
+
+            const tfoot = document.getElementById('matrix-tfoot');
+            if(tfoot) {
+                tfoot.innerHTML = `
+                    <tr>
+                        <td colspan="2" class="px-4 py-3 text-right border border-gray-300">TOTAL</td>
+                        <td class="px-3 py-3 text-center border border-gray-300">${totalHari}</td>
+                        <td class="px-3 py-3 text-center text-blue-700 border border-gray-300">${totalHES}</td>
+                        <td class="px-3 py-3 text-center text-red-700 border border-gray-300">${totalMinggu}</td>
+                        <td class="px-3 py-3 text-center text-orange-700 border border-gray-300">${totalLiburSem}</td>
+                        <td class="px-3 py-3 text-center text-red-900 border border-gray-300">${totalLiburUmum}</td>
+                        <td class="px-3 py-3 text-center text-emerald-700 border border-gray-300">${totalLiburKhusus}</td>
+                        <td class="px-4 py-3 border border-gray-300"></td>
+                    </tr>
+                `;
+            }
+        }
+
+        // --- MANAJEMEN AGENDA ---
+        function renderAgendaList() {
+            const tbody = document.getElementById('agenda-tbody');
+            const search = document.getElementById('search-agenda').value.toLowerCase();
+            const catFilter = document.getElementById('filter-agenda-cat').value;
+            const emptyState = document.getElementById('agenda-empty');
+            
+            tbody.innerHTML = '';
+            
+            let filtered = agendas.filter(a => {
+                const matchSearch = a.title.toLowerCase().includes(search) || (a.desc && a.desc.toLowerCase().includes(search));
+                const matchCat = catFilter === 'all' || a.type === catFilter;
+                
+                const agendaSem = getDateSemester(a.start);
+                const matchSem = currentSemester === 'all' || agendaSem === currentSemester;
+                
+                return matchSearch && matchCat && matchSem;
+            });
+
+            if (agendaSortDirection === 'desc') {
+                filtered.sort((a, b) => b.start.localeCompare(a.start)); 
+            } else {
+                filtered.sort((a, b) => a.start.localeCompare(b.start)); 
+            }
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                filtered.forEach(a => {
+                    const cat = CATEGORIES[a.type] || CATEGORIES['lainnya'];
+                    const dateStr = a.start === a.end ? formatDateIndo(a.start) : `${formatDateIndo(a.start)} -<br>${formatDateIndo(a.end)}`;
+                    
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="px-6 py-4">
+                                <div class="font-semibold text-gray-800">${a.title}</div>
+                                <div class="text-xs text-gray-500 truncate max-w-xs">${a.desc || '-'}</div>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">${dateStr}</td>
+                            <td class="px-6 py-4">
+                                <span class="px-2 py-1 text-xs rounded-full text-white ${cat.color}">${cat.label}</span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600 font-medium">
+                                <div><i class="far fa-user mr-1 w-4"></i> ${a.pic || '-'}</div>
+                                <div class="text-xs text-gray-500"><i class="fas fa-map-marker-alt mr-1 w-4 text-red-400"></i> ${a.location || '-'}</div>
+                            </td>
+                            <td class="px-6 py-4 text-right whitespace-nowrap">
+                                <button onclick="editAgenda('${a.id}')" class="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-2 rounded mr-1" title="Edit"><i class="fas fa-edit"></i></button>
+                                <button onclick="deleteAgenda('${a.id}')" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-2 rounded" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        function toggleAgendaSort() {
+            agendaSortDirection = agendaSortDirection === 'desc' ? 'asc' : 'desc';
+            
+            const icon = document.getElementById('agenda-sort-icon');
+            if (icon) {
+                if (agendaSortDirection === 'desc') {
+                    icon.className = 'fas fa-sort-down ml-2 text-brand-blue';
+                } else {
+                    icon.className = 'fas fa-sort-up ml-2 text-brand-blue';
+                }
+            }
+            
+            renderAgendaList();
+            showToast(agendaSortDirection === 'desc' ? 'Diurutkan dari Terbaru' : 'Diurutkan dari Terlama', 'success');
+        }
+
+        function openAgendaModal(id = null) {
+            const modal = document.getElementById('modal-agenda');
+            const form = document.getElementById('form-agenda');
+            const title = document.getElementById('modal-agenda-title');
+            
+            form.reset();
+            document.getElementById('agenda-id').value = '';
+
+            if (id) {
+                title.textContent = 'Edit Agenda';
+                const agenda = agendas.find(a => a.id === id);
+                if(agenda) {
+                    document.getElementById('agenda-id').value = agenda.id;
+                    document.getElementById('agenda-title').value = agenda.title;
+                    document.getElementById('agenda-start').value = agenda.start;
+                    document.getElementById('agenda-end').value = agenda.end;
+                    document.getElementById('agenda-type').value = agenda.type;
+                    document.getElementById('agenda-pic').value = agenda.pic || '';
+                    document.getElementById('agenda-location').value = agenda.location || '';
+                    document.getElementById('agenda-desc').value = agenda.desc || '';
+                }
+            } else {
+                title.textContent = 'Tambah Agenda Baru';
+                if(!document.getElementById('agenda-start').value) {
+                    const today = toYMD(new Date());
+                    document.getElementById('agenda-start').value = today;
+                    document.getElementById('agenda-end').value = today;
+                }
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function editAgenda(id) { openAgendaModal(id); }
+
+        function closeAgendaModal() {
+            document.getElementById('modal-agenda').classList.add('hidden');
+        }
+
+        function saveAgenda(e) {
+            e.preventDefault();
+            const id = document.getElementById('agenda-id').value;
+            const newAgenda = {
+                id: id || generateId(),
+                title: document.getElementById('agenda-title').value,
+                start: document.getElementById('agenda-start').value,
+                end: document.getElementById('agenda-end').value,
+                type: document.getElementById('agenda-type').value,
+                pic: document.getElementById('agenda-pic').value,
+                location: document.getElementById('agenda-location').value,
+                desc: document.getElementById('agenda-desc').value
+            };
+
+            if (newAgenda.end < newAgenda.start) {
+                showToast('Tanggal selesai tidak boleh sebelum tanggal mulai!', 'error');
+                return;
+            }
+
+            if (id) {
+                const idx = agendas.findIndex(a => a.id === id);
+                agendas[idx] = newAgenda;
+                showToast('Agenda berhasil diperbarui!', 'success');
+            } else {
+                agendas.push(newAgenda);
+                showToast('Agenda baru berhasil ditambahkan!', 'success');
+            }
+
+            saveToStorage();
+            closeAgendaModal();
+            renderAgendaList();
+        }
+
+        function deleteAgenda(id) {
+            showConfirm('Apakah Anda yakin ingin menghapus agenda ini?', () => {
+                agendas = agendas.filter(a => a.id !== id);
+                saveToStorage();
+                showToast('Agenda dihapus.', 'success');
+                renderAgendaList();
+            });
+        }
+
+        // --- STATISTIK HARI EFEKTIF ---
+        function renderStats() {
+            const startD = new Date(schoolData.startDate);
+            const endD = new Date(schoolData.endDate);
+            let currD = new Date(startD);
+            currD.setDate(1);
+            
+            let dataHE = [];
+            let dataHL = [];
+            const workDaysAllowed = parseInt(schoolData.workDays);
+
+            while (currD <= endD || (currD.getFullYear() === endD.getFullYear() && currD.getMonth() <= endD.getMonth())) {
+                const year = currD.getFullYear();
+                const month = currD.getMonth();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                
+                let isSem1Month = (month >= 6 && month <= 11);
+                let matchesFilter = (currentSemester === 'all') || 
+                                    (currentSemester === '1' && isSem1Month) || 
+                                    (currentSemester === '2' && !isSem1Month);
+
+                if (!matchesFilter) {
+                    currD.setMonth(currD.getMonth() + 1);
+                    continue;
+                }
+
+                let he = 0; let hl = 0;
+                for (let d = 1; d <= daysInMonth; d++) {
+                    let dObj = new Date(year, month, d);
+                    let dStr = toYMD(dObj);
+                    
+                    if (dStr < schoolData.startDate) {
+                        if (month === startD.getMonth() && year === startD.getFullYear()) {
+                            hl++; 
+                            continue;
+                        }
+                        continue;
+                    }
+
+                    if (dStr > schoolData.endDate) continue;
+                    
+                    let isWeekend = (dObj.getDay() === 0) || (workDaysAllowed === 5 && dObj.getDay() === 6);
+                    let dAgendas = agendas.filter(a => a.start <= dStr && a.end >= dStr);
+                    let isLibur = isWeekend || dAgendas.some(a => ['libur_umum', 'libur_semester', 'keagamaan'].includes(a.type));
+                    
+                    if (isLibur) hl++; else he++;
+                }
+                dataHE.push(he);
+                dataHL.push(hl);
+                currD.setMonth(currD.getMonth() + 1);
+            }
+
+            const totalHE = dataHE.reduce((sum, val) => sum + val, 0);
+            const totalHL = dataHL.reduce((sum, val) => sum + val, 0);
+
+            document.getElementById('stats-page-he').textContent = totalHE;
+            document.getElementById('stats-page-hl').textContent = totalHL;
+
+            let catCount = {};
+            for(let key in CATEGORIES) catCount[key] = 0;
+            
+            agendas.forEach(a => { 
+                const agendaSem = getDateSemester(a.start);
+                if (currentSemester === 'all' || agendaSem === currentSemester) {
+                    if(catCount[a.type] !== undefined) catCount[a.type]++; 
+                }
+            });
+            
+            const breakdownContainer = document.getElementById('stats-agenda-breakdown');
+            breakdownContainer.innerHTML = '';
+            
+            let hasData = false;
+            for (let key in catCount) {
+                if(catCount[key] > 0) {
+                    hasData = true;
+                    const cat = CATEGORIES[key];
+                    breakdownContainer.innerHTML += `
+                        <div class="flex items-center justify-between p-3 rounded-lg border border-gray-100 bg-gray-50">
+                            <div class="flex items-center">
+                                <span class="w-4 h-4 rounded-full ${cat.color} mr-3 shadow-sm"></span>
+                                <span class="font-medium text-gray-700">${cat.label}</span>
+                            </div>
+                            <span class="font-bold text-brand-blue text-lg">${catCount[key]} <span class="text-xs text-gray-500 font-normal">Agenda</span></span>
+                        </div>
+                    `;
+                }
+            }
+
+            if (!hasData) {
+                breakdownContainer.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">Belum ada data agenda berdasarkan filter semester.</p>';
+            }
+        }
+
+        // --- CETAK RESMI FORMAT TABEL 1-31 ---
+        function renderCetakResmi() {
+            document.getElementById('cetak-namasek').textContent = schoolData.schoolName;
+            document.getElementById('cetak-alamatsek').textContent = schoolData.schoolAddress;
+            document.getElementById('cetak-ta').textContent = schoolData.academicYear;
+            document.getElementById('cetak-nosurat').textContent = schoolData.noSurat || '-';
+            document.getElementById('cetak-ks-nama').textContent = schoolData.headmaster;
+            document.getElementById('cetak-ks-nip').textContent = schoolData.nip || '-';
+            document.getElementById('cetak-wk-nama').textContent = schoolData.waliKelas || '-';
+            document.getElementById('cetak-wk-nip').textContent = schoolData.nipWali || '-';
+            document.getElementById('cetak-dinas').textContent = schoolData.govName || 'PEMERINTAH KOTA BANDAR LAMPUNG';
+            
+            const startDateObj = new Date(schoolData.startDate);
+            document.getElementById('cetak-tanggal-ttd').textContent = `Bandar Lampung, ${startDateObj.getDate()} ${MONTH_NAMES[startDateObj.getMonth()]} ${startDateObj.getFullYear()}`;
+
+            if(schoolData.logo) {
+                const img = document.getElementById('cetak-logo');
+                img.src = schoolData.logo;
+                img.classList.remove('hidden');
+            } else {
+                document.getElementById('cetak-logo').classList.add('hidden');
+            }
+
+            if(schoolData.govLogo) {
+                const imgGov = document.getElementById('cetak-gov-logo');
+                imgGov.src = schoolData.govLogo;
+                imgGov.classList.remove('hidden');
+            } else {
+                document.getElementById('cetak-gov-logo').classList.add('hidden');
+            }
+
+            const leg = document.getElementById('cetak-legend');
+            leg.innerHTML = `<div class="flex items-center"><div class="w-3 h-3 bg-red-500 border border-red-700 mr-1"></div> M/L (Minggu)</div>`;
+            for (const [key, val] of Object.entries(CATEGORIES)) {
+                let colorClass = val.color;
+                if (key === 'libur_umum') colorClass = 'bg-red-200';
+                leg.innerHTML += `<div class="flex items-center"><div class="w-3 h-3 ${colorClass} mr-1 border border-gray-400"></div> ${val.label}</div>`;
+            }
+
+            const startYear = new Date(schoolData.startDate).getFullYear();
+            
+            let sem1Stats = { hes: 0, minggu: 0, libur_semester: 0, libur_umum: 0, libur_khusus: 0, total: 0 };
+            let sem2Stats = { hes: 0, minggu: 0, libur_semester: 0, libur_umum: 0, libur_khusus: 0, total: 0 };
+
+            const sem1Months = [6, 7, 8, 9, 10, 11];
+            document.getElementById('tabel-resmi-sem1').innerHTML = generateHTMLTableResmi(sem1Months, startYear, sem1Stats, "SEMESTER 1");
+
+            const sem2Months = [0, 1, 2, 3, 4, 5];
+            let sem2HTML = generateHTMLTableResmi(sem2Months, startYear + 1, sem2Stats, "SEMESTER 2");
+
+            const grandHes = sem1Stats.hes + sem2Stats.hes;
+            const grandMinggu = sem1Stats.minggu + sem2Stats.minggu;
+            const grandLiburSemester = sem1Stats.libur_semester + sem2Stats.libur_semester;
+            const grandLiburUmum = sem1Stats.libur_umum + sem2Stats.libur_umum;
+            const grandLiburKhusus = sem1Stats.libur_khusus + sem2Stats.libur_khusus;
+            const grandTotal = sem1Stats.total + sem2Stats.total;
+
+            const grandTotalRow = `
+                <tr class="bg-brand-blue text-white font-bold text-sm">
+                    <td colspan="32" class="text-right pr-4 uppercase">TOTAL TAHUN AJARAN (SEM 1 + SEM 2)</td>
+                    <td class="bg-blue-900 text-white">${grandHes}</td>
+                    <td class="bg-red-900 text-white">${grandMinggu}</td>
+                    <td class="bg-orange-800 text-white">${grandLiburSemester}</td>
+                    <td class="bg-red-950 text-white">${grandLiburUmum}</td>
+                    <td class="bg-emerald-900 text-white">${grandLiburKhusus}</td>
+                    <td class="bg-yellow-600 text-white font-extrabold">${grandTotal}</td>
+                </tr>
+            `;
+
+            sem2HTML = sem2HTML.replace('</tbody>', grandTotalRow + '</tbody>');
+            document.getElementById('tabel-resmi-sem2').innerHTML = sem2HTML;
+
+            renderAgendaCetakResmi();
+        }
+
+        function generateHTMLTableResmi(monthsArr, year, statsObj, labelSemester) {
+            let html = `
+                <thead class="bg-gray-100 font-bold">
+                    <tr>
+                        <th rowspan="2" class="col-bulan uppercase">Bulan</th>
+                        <th colspan="31" class="uppercase">Tanggal</th>
+                        <th colspan="6" class="uppercase">Jumlah</th>
+                    </tr>
+                    <tr>
+            `;
+            for(let i=1; i<=31; i++) html += `<th class="bg-gray-50 col-tgl">${i}</th>`;
+            
+            html += `
+                <th class="bg-blue-50 text-blue-700 col-jml">HES</th>
+                <th class="bg-red-50 text-red-700 col-jml">Minggu</th>
+                <th class="bg-orange-50 text-orange-700 col-jml">L. Sem</th>
+                <th class="bg-red-50 text-red-900 col-jml">L. Um</th>
+                <th class="bg-emerald-50 text-emerald-800 col-jml">L. Kh</th>
+                <th class="bg-yellow-50 text-yellow-900 font-extrabold col-total">Total</th>
+            </tr></thead><tbody>`;
+
+            const workDaysAllowed = parseInt(schoolData.workDays);
+            const startDObj = new Date(schoolData.startDate);
+
+            monthsArr.forEach(month => {
+                html += `<tr><td class="font-bold text-left px-1">${MONTH_NAMES[month].substring(0,3)} '${year.toString().substring(2,4)}</td>`;
+                
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                let monthStats = { hes: 0, minggu: 0, libur_semester: 0, libur_umum: 0, libur_khusus: 0 };
+
+                for(let d=1; d<=31; d++) {
+                    if (d > daysInMonth) {
+                        html += `<td class="bg-hitam"></td>`; 
+                        continue;
+                    }
+
+                    let dObj = new Date(year, month, d);
+                    let dStr = toYMD(dObj);
+                    
+                    let bgClass = ""; 
+                    let isSunday = dObj.getDay() === 0;
+                    let isSaturday = dObj.getDay() === 6;
+                    
+                    if (dStr < schoolData.startDate) {
+                        if (month === startDObj.getMonth() && year === startDObj.getFullYear()) {
+                            if (isSunday) {
+                                bgClass = "bg-red-500 text-white font-bold";
+                                monthStats.minggu++;
+                            } else if (isSaturday && workDaysAllowed === 5) {
+                                bgClass = "bg-red-500 text-white font-bold";
+                                monthStats.libur_khusus++;
+                            } else {
+                                bgClass = CATEGORIES['libur_semester'].color;
+                                monthStats.libur_semester++;
+                            }
+                        } else {
+                            bgClass = "bg-gray-200"; 
+                        }
+                    } else if (dStr > schoolData.endDate) {
+                        bgClass = "bg-gray-200"; 
+                    } else {
+                        let dAgendas = agendas.filter(a => a.start <= dStr && a.end >= dStr);
+                        let hasLiburUmum = dAgendas.some(a => a.type === 'libur_umum');
+                        let hasLiburSemester = dAgendas.some(a => a.type === 'libur_semester');
+                        let hasLiburKhusus = dAgendas.some(a => a.type === 'keagamaan');
+
+                        if (isSunday) {
+                            bgClass = "bg-red-500 text-white font-bold";
+                            monthStats.minggu++;
+                        } else if (hasLiburUmum) {
+                            bgClass = "bg-red-200"; 
+                            monthStats.libur_umum++;
+                        } else if (hasLiburSemester) {
+                            bgClass = CATEGORIES['libur_semester'].color;
+                            monthStats.libur_semester++;
+                        } else if (hasLiburKhusus) {
+                            bgClass = CATEGORIES['keagamaan'].color;
+                            monthStats.libur_khusus++;
+                        } else if (isSaturday && workDaysAllowed === 5) {
+                            bgClass = "bg-red-500 text-white font-bold"; 
+                            monthStats.libur_khusus++;
+                        } else {
+                            if (dAgendas.length > 0) {
+                                let aType = dAgendas[0].type;
+                                bgClass = CATEGORIES[aType]?.color || "";
+                            } else {
+                                bgClass = ""; 
+                            }
+                            monthStats.hes++;
+                        }
+                    }
+
+                    html += `<td class="${bgClass}"></td>`;
+                }
+
+                let monthTotal = monthStats.hes + monthStats.minggu + monthStats.libur_semester + monthStats.libur_umum + monthStats.libur_khusus;
+
+                statsObj.hes += monthStats.hes;
+                statsObj.minggu += monthStats.minggu;
+                statsObj.libur_semester += monthStats.libur_semester;
+                statsObj.libur_umum += monthStats.libur_umum;
+                statsObj.libur_khusus += monthStats.libur_khusus;
+                statsObj.total += monthTotal;
+
+                html += `
+                    <td class="font-bold bg-blue-50 text-blue-800">${monthStats.hes}</td>
+                    <td class="font-bold bg-red-50 text-red-800">${monthStats.minggu}</td>
+                    <td class="font-bold bg-orange-50 text-orange-800">${monthStats.libur_semester}</td>
+                    <td class="font-bold bg-red-50 text-red-900">${monthStats.libur_umum}</td>
+                    <td class="font-bold bg-emerald-50 text-emerald-900">${monthStats.libur_khusus}</td>
+                    <td class="font-extrabold bg-yellow-50 text-yellow-950">${monthTotal}</td>
+                </tr>`;
+            });
+
+            html += `
+                <tr class="bg-gray-100 font-bold text-gray-800">
+                    <td colspan="32" class="text-right pr-4">JUMLAH ${labelSemester}</td>
+                    <td class="bg-blue-100 text-blue-900">${statsObj.hes}</td>
+                    <td class="bg-red-100 text-red-900">${statsObj.minggu}</td>
+                    <td class="bg-orange-100 text-orange-900">${statsObj.libur_semester}</td>
+                    <td class="bg-red-200 text-red-950">${statsObj.libur_umum}</td>
+                    <td class="bg-emerald-100 text-emerald-950">${statsObj.libur_khusus}</td>
+                    <td class="bg-yellow-200 text-yellow-950 font-extrabold">${statsObj.total}</td>
+                </tr>
+            `;
+
+            html += `</tbody>`;
+            return html;
+        }
+
+        function renderAgendaCetakResmi() {
+            const tableSem1 = document.getElementById('tabel-resmi-agenda-sem1');
+            const tableSem2 = document.getElementById('tabel-resmi-agenda-sem2');
+            
+            const theadHTML = `
+                <thead class="bg-gray-100 font-bold">
+                    <tr>
+                        <th style="width: 32px;" class="py-1.5">No</th>
+                        <th style="width: 55px;" class="py-1.5">Bulan</th>
+                        <th class="py-1.5 text-left px-3">Agenda / Kegiatan Sekolah</th>
+                    </tr>
+                </thead>
+                <tbody>
+            `;
+
+            const activeAgendas = agendas.filter(a => {
+                return a.start >= schoolData.startDate && a.start <= schoolData.endDate;
+            }).sort((a, b) => a.start.localeCompare(b.start));
+
+            let htmlSem1 = theadHTML;
+            let htmlSem2 = theadHTML;
+            let countSem1 = 1;
+            let countSem2 = 1;
+
+            if (activeAgendas.length === 0) {
+                htmlSem1 += `<tr><td colspan="3" class="py-4 text-center text-gray-500 italic">Belum ada agenda di Semester 1.</td></tr>`;
+                htmlSem2 += `<tr><td colspan="3" class="py-4 text-center text-gray-500 italic">Belum ada agenda di Semester 2.</td></tr>`;
+            } else {
+                activeAgendas.forEach((a) => {
+                    const dateStartObj = new Date(a.start);
+                    const dateEndObj = new Date(a.end);
+                    const month = dateStartObj.getMonth();
+                    
+                    const isSem1 = (month >= 6 && month <= 11);
+
+                    const labelBulanTahun = `${MONTH_NAMES[month].substring(0,3)} '${dateStartObj.getFullYear().toString().substring(2,4)}`;
+                    
+                    let labelTanggalSingkat = '';
+                    if (a.start === a.end) {
+                        labelTanggalSingkat = formatDateIndo(a.start);
+                    } else {
+                        if (dateStartObj.getMonth() === dateEndObj.getMonth() && dateStartObj.getFullYear() === dateEndObj.getFullYear()) {
+                            labelTanggalSingkat = `${dateStartObj.getDate()} - ${dateEndObj.getDate()} ${MONTH_NAMES[dateStartObj.getMonth()]} ${dateStartObj.getFullYear()}`;
+                        } else {
+                            labelTanggalSingkat = `${formatDateIndo(a.start)} - ${formatDateIndo(a.end)}`;
+                        }
+                    }
+
+                    const rowHTML = `
+                        <tr class="hover:bg-gray-50">
+                            <td class="py-1">${isSem1 ? countSem1++ : countSem2++}</td>
+                            <td class="font-semibold text-brand-blue py-1">${labelBulanTahun}</td>
+                            <td class="text-left px-3 py-1.5 text-[10px] leading-tight text-gray-800">
+                                <span class="font-bold">${a.title}</span> (${labelTanggalSingkat})
+                            </td>
+                        </tr>
+                    `;
+
+                    if (isSem1) {
+                        htmlSem1 += rowHTML;
+                    } else {
+                        htmlSem2 += rowHTML;
+                    }
+                });
+
+                if (countSem1 === 1) htmlSem1 += `<tr><td colspan="3" class="py-4 text-center text-gray-500 italic">Belum ada agenda di Semester 1.</td></tr>`;
+                if (countSem2 === 1) htmlSem2 += `<tr><td colspan="3" class="py-4 text-center text-gray-500 italic">Belum ada agenda di Semester 2.</td></tr>`;
+            }
+
+            htmlSem1 += `</tbody>`;
+            htmlSem2 += `</tbody>`;
+
+            tableSem1.innerHTML = htmlSem1;
+            tableSem2.innerHTML = htmlSem2;
+        }
+
+        // --- PENGATURAN / SETELAN ---
+        function saveSettings(e) {
+            e.preventDefault();
+            schoolData = {
+                schoolName: document.getElementById('set-school-name').value,
+                schoolAddress: document.getElementById('set-school-address').value,
+                logo: document.getElementById('set-school-logo').value,
+                govName: document.getElementById('set-gov-name').value,
+                govLogo: document.getElementById('set-gov-logo').value,
+                headmaster: document.getElementById('set-headmaster').value,
+                nip: document.getElementById('set-nip').value,
+                noSurat: document.getElementById('set-no-surat').value,
+                waliKelas: document.getElementById('set-wali-kelas').value,
+                nipWali: document.getElementById('set-nip-wali').value,
+                academicYear: document.getElementById('set-academic-year').value,
+                workDays: document.getElementById('set-work-days').value,
+                startDate: document.getElementById('set-start-date').value,
+                endDate: document.getElementById('set-end-date').value,
+            };
+
+            if (schoolData.endDate <= schoolData.startDate) {
+                showToast('Tanggal selesai kalender tidak valid!', 'error');
+                return;
+            }
+
+            saveToStorage();
+            setupUI();
+            showToast('Pengaturan Sekolah berhasil disimpan.', 'success');
+        }
+
+        // --- RESET DATA ---
+        function triggerResetData() {
+            showConfirm('PERINGATAN: Semua data agenda dan pengaturan akan dihapus secara permanen. Apakah Anda yakin?', () => {
+                localStorage.removeItem('kaldik_settings');
+                localStorage.removeItem('kaldik_agendas');
+                showToast('Data direset, memuat ulang...', 'success');
+                setTimeout(() => location.reload(), 1500);
+            });
+        }
+
+        // --- UTILS DAN PENYIMPANAN OFFLINE (LOCAL STORAGE ONLY) ---
+        function saveToStorage() {
+            try {
+                localStorage.setItem('kaldik_settings', JSON.stringify(schoolData));
+                localStorage.setItem('kaldik_agendas', JSON.stringify(agendas));
+            } catch (e) {
+                console.warn('Gagal menyimpan ke LocalStorage:', e);
+                showToast('Gagal menyimpan data.', 'error');
+            }
+        }
+
+        function generateId() {
+            return Math.random().toString(36).substr(2, 9);
+        }
+
+        function toYMD(date) {
+            const d = new Date(date);
+            let month = '' + (d.getMonth() + 1);
+            let day = '' + d.getDate();
+            const year = d.getFullYear();
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+            return [year, month, day].join('-');
+        }
+
+        function formatDateIndo(dateStr) {
+            if(!dateStr) return '';
+            const d = new Date(dateStr);
+            return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return; 
+            const toast = document.createElement('div');
+            
+            const colorClass = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-brand-blue');
+            const iconClass = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle');
+
+            toast.className = `toast-enter flex items-center p-4 mb-4 w-full max-w-xs text-white rounded-lg shadow-lg ${colorClass}`;
+            toast.innerHTML = `
+                <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 bg-white bg-opacity-20 rounded-lg">
+                    <i class="fas ${iconClass}"></i>
+                </div>
+                <div class="ml-3 text-sm font-normal">${message}</div>
+                <button type="button" class="ml-auto -mx-1.5 -my-1.5 bg-transparent text-white hover:text-gray-200 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 inline-flex h-8 w-8" onclick="this.parentElement.remove()">
+                    <span class="sr-only">Tutup</span>
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    toast.style.transition = 'all 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, 3000);
+        }
+
+        function startClock() {
+            setInterval(() => {
+                const now = new Date();
+                const clock = document.getElementById('realtime-clock');
+                if (clock) clock.textContent = now.toLocaleTimeString('id-ID');
+            }, 1000);
+        }
+
+        // --- SISTEM EKSPOR PDF CERDAS & INDEPENDEN ---
+        function downloadPDF() {
+            showToast('Sedang menyusun dokumen PDF, mohon tunggu...', 'info');
+            const element = document.getElementById('cetak-area');
+            if (!element) return;
+            
+            const body = document.body;
+            const appContainer = document.getElementById('app-container');
+            const mainContent = document.querySelector('main');
+            const viewContainer = document.getElementById('view-container');
+            
+            const originalBodyOverflow = body.style.overflow;
+            const originalAppContainerOverflow = appContainer ? appContainer.style.overflow : '';
+            const originalMainOverflow = mainContent ? mainContent.style.overflow : '';
+            const originalViewContainerOverflow = viewContainer ? viewContainer.style.overflow : '';
+            
+            body.style.overflow = 'visible';
+            if (appContainer) appContainer.style.overflow = 'visible';
+            if (mainContent) mainContent.style.overflow = 'visible';
+            if (viewContainer) viewContainer.style.overflow = 'visible';
+            
+            const originalStyle = element.getAttribute('style') || '';
+            
+            element.setAttribute('style', 'width: 1040px !important; max-width: 1040px !important; min-width: 1040px !important; box-sizing: border-box !important;');
+            element.classList.add('pdf-export-mode');
+
+            const filenameStr = `Kaldik_Resmi_${schoolData.academicYear.replace('/', '-')}.pdf`;
+
+            const opt = {
+                margin:       [8, 8, 8, 8], 
+                filename:     filenameStr,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    scrollX: 0,
+                    scrollY: 0,
+                    windowWidth: 1040 
+                },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+                pagebreak:    { mode: ['css', 'legacy'] }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.setAttribute('style', originalStyle);
+                element.classList.remove('pdf-export-mode');
+                
+                body.style.overflow = originalBodyOverflow;
+                if (appContainer) appContainer.style.overflow = originalAppContainerOverflow;
+                if (mainContent) mainContent.style.overflow = originalMainOverflow;
+                if (viewContainer) viewContainer.style.overflow = originalViewContainerOverflow;
+                
+                showToast('Dokumen PDF berhasil diunduh!', 'success');
+            }).catch(err => {
+                element.setAttribute('style', originalStyle);
+                element.classList.remove('pdf-export-mode');
+                
+                body.style.overflow = originalBodyOverflow;
+                if (appContainer) appContainer.style.overflow = originalAppContainerOverflow;
+                if (mainContent) mainContent.style.overflow = originalMainOverflow;
+                if (viewContainer) viewContainer.style.overflow = originalViewContainerOverflow;
+                
+                console.error('Error saat export PDF:', err);
+                showToast('Gagal menghasilkan dokumen PDF.', 'error');
+            });
+        }
+
+        function exportToExcel(tableID, filename = 'Matrik_Kaldik') {
+            let table = document.getElementById(tableID);
+            if (!table) return;
+            let wb = XLSX.utils.table_to_book(table, {sheet: "Matrik"});
+            XLSX.writeFile(wb, `${filename}_${schoolData.academicYear.replace('/','-')}.xlsx`);
+        }
+
+        // --- SISTEM BACKUP DAN RESTORE JSON ---
+        function backupData() {
+            try {
+                const dataToBackup = {
+                    version: "1.0",
+                    exportDate: new Date().toISOString(),
+                    settings: schoolData,
+                    agendas: agendas
+                };
+                
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToBackup, null, 2));
+                const downloadNode = document.createElement('a');
+                
+                downloadNode.setAttribute("href", dataStr);
+                downloadNode.setAttribute("download", `Backup_KaldikSD_${toYMD(new Date())}.json`);
+                document.body.appendChild(downloadNode); // Dibutuhkan untuk Firefox
+                downloadNode.click();
+                downloadNode.remove();
+                
+                showToast('Data berhasil di-backup dan diunduh!', 'success');
+            } catch (err) {
+                console.error("Backup failed: ", err);
+                showToast('Terjadi kesalahan saat mem-backup data.', 'error');
+            }
+        }
+
+        function restoreData() {
+            const fileInput = document.getElementById('restore-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showToast('Silakan pilih file backup (JSON) terlebih dahulu!', 'error');
+                return;
+            }
+
+            if (file.type !== "application/json" && !file.name.endsWith('.json')) {
+                showToast('Format file salah! Harus berupa file .json', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Validasi sederhana struktur JSON
+                    if (data.settings && data.agendas && Array.isArray(data.agendas)) {
+                        showConfirm('Peringatan: Seluruh data di perangkat ini akan DIGANTI dengan data dari file backup. Apakah Anda yakin ingin melanjutkan?', () => {
+                            schoolData = data.settings;
+                            agendas = data.agendas;
+                            
+                            saveToStorage();
+                            showToast('Data berhasil dipulihkan! Halaman akan dimuat ulang...', 'success');
+                            
+                            // Muat ulang halaman untuk menerapkan semua data
+                            setTimeout(() => {
+                                location.reload();
+                            }, 1500);
+                        });
+                    } else {
+                        showToast('Format file backup tidak valid atau rusak!', 'error');
+                    }
+                } catch (err) {
+                    showToast('Gagal mengurai file JSON. File mungkin korup.', 'error');
+                }
+            };
+            
+            reader.onerror = function() {
+                showToast('Gagal membaca file dari komputer/perangkat Anda.', 'error');
+            };
+            
+            reader.readAsText(file);
+        }
+
+    </script>
+</body>
+</html>
