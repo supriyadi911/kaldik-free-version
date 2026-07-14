@@ -388,6 +388,9 @@
                 <a href="#" onclick="switchView('rpm-generator')" id="nav-rpm-generator" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
                     <div class="flex items-center"><i class="fas fa-file-signature w-6"></i> RPM Generator</div>
                 </a>
+                <a href="#" onclick="switchView('kokurikuler')" id="nav-kokurikuler" class="nav-item flex items-center justify-between px-6 py-3 text-sm font-medium text-gray-300 hover:bg-blue-800 hover:text-white transition-colors">
+                    <div class="flex items-center"><i class="fas fa-seedling w-6"></i> Program Kokurikuler</div>
+                </a>
 
                 <!-- KATEGORI: SISTEM -->
                 <div class="px-6 py-2 mt-2 text-[10px] font-bold text-blue-300 uppercase tracking-wider">Sistem</div>
@@ -1398,6 +1401,10 @@
             }
             if (viewId === 'rpm-generator') {
                 window.open('https://gemini.google.com/share/2f585680c47c', '_blank');
+                return;
+            }
+            if (viewId === 'kokurikuler') {
+                window.open('https://supriyadi911.github.io/kokurikuler/', '_blank');
                 return;
             }
 
