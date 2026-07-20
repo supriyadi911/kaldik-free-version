@@ -821,7 +821,7 @@
 
                         <!-- HALAMAN 1: TABEL MATRIK KALENDER -->
                         <div class="text-center mb-6">
-                            <h3 class="text-lg font-bold underline uppercase text-center">KALENDER PENDIDIKAN TAHIAN AJARAN <span id="cetak-ta"></span></h3>
+                            <h3 class="text-lg font-bold underline uppercase text-center">KALENDER PENDIDIKAN TAHUN AJARAN <span id="cetak-ta"></span></h3>
                             <p class="text-sm text-center">Nomor: <span id="cetak-nosurat">-</span></p>
                         </div>
 
@@ -2423,6 +2423,7 @@
             }
         }
 
+        // --- GENERATE ID ---
         function generateId() {
             return Math.random().toString(36).substr(2, 9);
         }
@@ -2443,6 +2444,7 @@
             return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
         }
 
+        // --- TOAST NOTIFICATION ---
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
             if (!container) return; 
